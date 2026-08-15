@@ -36,6 +36,7 @@ const { passport }   = require('./auth/oauth');
 const { authenticate, requireRole, requirePermission } = require('./middleware/rbac');
 const authRouter     = require('./routes/auth');
 const adminRouter    = require('./routes/admin');
+const apiRouter      = require('./routes/api');
 
 const app    = express();
 const server = http.createServer(app);
@@ -75,6 +76,7 @@ app.use('/auth/', rateLimit({ windowMs: 60000, max: 30 }));
 // ── Auth & Admin routers ──────────────────────────────────────────────────────
 app.use('/auth',  authRouter);
 app.use('/admin', adminRouter);
+app.use('/api/v1', apiRouter);
 
 // ── Public routes ─────────────────────────────────────────────────────────────
 app.get('/api/health', async (req, res) => {
@@ -175,6 +177,12 @@ app.get('/', requireSession, (req, res) => {
   const f = path.join(PUBLIC, 'corverxis-one.html');
   if (fs.existsSync(f)) return res.sendFile(f);
   res.status(404).send('corverxis-one.html not found in public/');
+});
+
+app.get('/sensormodel', requireSession, (req, res) => {
+  const f = path.join(PUBLIC, 'sensormodel.html');
+  if (fs.existsSync(f)) return res.sendFile(f);
+  res.status(404).send('sensormodel.html not found in public/');
 });
 
 app.get('/vision', requireSession, (req, res) => {

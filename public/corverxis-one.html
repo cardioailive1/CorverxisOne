@@ -151,6 +151,9 @@ tr:hover td{background:rgba(255,255,255,0.02);}
   <button class="nav-item" id="ni-pred" onclick="nav('pred')">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Predictive Maintenance
   </button>
+  <button class="nav-item" id="ni-sensormodel" onclick="nav('sensormodel')">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>SensorModel AI
+  </button>
   <div class="nav-label">Quality</div>
   <button class="nav-item" id="ni-qms" onclick="nav('qms')">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>QMS Quality Control
@@ -366,6 +369,20 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 </div>
 
 <!-- QMS -->
+<!-- SENSORMODEL -->
+<div class="page" id="pg-sensormodel">
+<div class="pt">SensorModel AI — 72 Sensors · 18 Verticals · 5 ML Algorithms</div>
+<div class="ps">EKF · LSTM · ARIMA · Fourier · Ensemble · ISO 13381-1 RUL · IATF 16949 Cl. 8.5.1 · Real-time predictions</div>
+<div style="width:100%;height:calc(100vh - 108px);border-radius:8px;overflow:hidden;border:1px solid var(--border);">
+  <iframe
+    id="sensormodel-frame"
+    style="width:100%;height:100%;border:none;display:block;"
+    src=""
+    title="Corverxis SensorModel AI Platform">
+  </iframe>
+</div>
+</div>
+
 <div class="page" id="pg-qms">
 <div class="pt">QMS - Quality Management System</div>
 <div class="ps">IATF 16949 | AS9100D | ISO 9001 | Control Plans | MSA | SPC | NCR Management</div>
@@ -1304,13 +1321,30 @@ function loadVisionFrame() {
   visionLoaded = true;
   var frame = document.getElementById('vision-frame');
   if (!frame) return;
-  // If hosted on a server use /vision route — faster and cleaner
   var isHosted = location.hostname !== '' && location.protocol !== 'file:';
   if (isHosted) {
     frame.src = '/vision';
   } else {
-    // Fallback: b64 embed for local file:// usage
     frame.srcdoc = atob(visionB64);
+  }
+}
+
+var sensorModelLoaded = false;
+function loadSensorModelFrame() {
+  if (sensorModelLoaded) return;
+  sensorModelLoaded = true;
+  var frame = document.getElementById('sensormodel-frame');
+  if (!frame) return;
+  var isHosted = location.hostname !== '' && location.protocol !== 'file:';
+  if (isHosted) {
+    frame.src = '/sensormodel';
+  } else {
+    // local fallback — open in new tab
+    frame.srcdoc = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#0a1628;color:#00c2e0;font-family:sans-serif;flex-direction:column;gap:16px;">' +
+      '<div style="font-size:18px;font-weight:700;">SensorModel AI</div>' +
+      '<div style="color:#6b7280;font-size:13px;">Deploy to Render to access SensorModel embedded here.</div>' +
+      '<a href="SensorModel_Corverxis.html" target="_blank" style="padding:10px 24px;background:#00c2e0;color:#0a1628;border-radius:8px;text-decoration:none;font-weight:700;">Open SensorModel →</a>' +
+      '</div>';
   }
 }
 

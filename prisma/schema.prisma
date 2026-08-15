@@ -14,7 +14,11 @@ model Org {
   plan      OrgPlan  @default(STARTER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  users     User[]
+  users          User[]
+  workOrders     WorkOrder[]
+  lines          ProductionLine[]
+  ncrs           Ncr[]
+  suppliers      Supplier[]
   assets    Asset[]
 
   @@map("orgs")
@@ -249,4 +253,151 @@ model AuditLog {
   @@index([userId])
   @@index([timestamp])
   @@map("audit_logs")
+}
+
+// ── Work Orders ───────────────────────────────────────────────────────────────
+model WorkOrder {
+  id          String           @id @default(cuid())
+  number      String
+  partNumber  String
+  customer    String?
+  quantity    Int              @default(0)
+  completed   Int              @default(0)
+  status      WorkOrderStatus  @default(OPEN)
+  priority    Int              @default(3)
+  dueDate     DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+  orgId       String
+  org         Org              @relation(fields: [orgId], references: [id])
+  lineId      String?
+  line        ProductionLine?  @relation(fields: [lineId], references: [id])
+  createdBy   String?
+  notes       String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([orgId])
+  @@index([status])
+  @@map("work_orders")
+}
+
+enum WorkOrderStatus {
+  OPEN
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+// ── Production Lines ──────────────────────────────────────────────────────────
+model ProductionLine {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  orgId       String
+  org         Org         @relation(fields: [orgId], references: [id])
+  location    String?
+  active      Boolean     @default(true)
+  workOrders  WorkOrder[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([orgId])
+  @@map("production_lines")
+}
+
+// ── NCRs ──────────────────────────────────────────────────────────────────────
+model Ncr {
+  id                String     @id @default(cuid())
+  number            String
+  partNumber        String
+  customer          String?
+  defectType        String?
+  severity          String
+  description       String?
+  status            String     @default("OPEN")
+  quantityAffected  Int        @default(0)
+  workOrderId       String?
+  orgId             String
+  org               Org        @relation(fields: [orgId], references: [id])
+  createdBy         String?
+  closedAt          DateTime?
+  closedBy          String?
+  correctiveAction  String?
+  rootCause         String?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@index([orgId])
+  @@index([status])
+  @@map("ncrs")
+}
+
+// ── Suppliers ─────────────────────────────────────────────────────────────────
+model Supplier {
+  id             String          @id @default(cuid())
+  name           String
+  category       String?
+  orgId          String
+  org            Org             @relation(fields: [orgId], references: [id])
+  otif           Float           @default(0)
+  qualityPpm     Float           @default(0)
+  score          Float           @default(0)
+  rating         String          @default("APPROVED")
+  contactName    String?
+  contactEmail   String?
+  country        String?
+  currency       String          @default("USD")
+  scars          Scar[]
+  purchaseOrders PurchaseOrder[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([orgId])
+  @@map("suppliers")
+}
+
+// ── SCARs ─────────────────────────────────────────────────────────────────────
+model Scar {
+  id          String    @id @default(cuid())
+  number      String
+  supplierId  String
+  supplier    Supplier  @relation(fields: [supplierId], references: [id])
+  issue       String
+  severity    String    @default("MAJOR")
+  status      String    @default("OPEN")
+  d8Status    String?
+  issuedAt    DateTime  @default(now())
+  dueAt       DateTime?
+  closedAt    DateTime?
+  ncrId       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([supplierId])
+  @@map("scars")
+}
+
+// ── Purchase Orders ───────────────────────────────────────────────────────────
+model PurchaseOrder {
+  id          String    @id @default(cuid())
+  number      String
+  supplierId  String
+  supplier    Supplier  @relation(fields: [supplierId], references: [id])
+  partNumber  String?
+  description String?
+  quantity    Int       @default(0)
+  unitPrice   Float     @default(0)
+  totalValue  Float     @default(0)
+  currency    String    @default("USD")
+  status      String    @default("OPEN")
+  orderedAt   DateTime  @default(now())
+  dueAt       DateTime?
+  receivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([supplierId])
+  @@map("purchase_orders")
 }
