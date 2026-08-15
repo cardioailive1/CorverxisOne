@@ -149,8 +149,8 @@ router.post('/work-orders', authenticate, requireRole('MANAGER'), async (req, re
     });
 
     await prisma.auditLog.create({
-      data: { userId: req.user.id, orgId: req.user.orgId,
-              action: 'work_order.created', resourceId: wo.id, outcome: 'success' },
+      data: { userId: req.user.id, orgId: req.user.orgId ?? null,
+              action: 'work_order.created', resource: 'work_order', resourceId: wo.id, outcome: 'success' },
     }).catch(() => {});
 
     res.status(201).json({ success: true, data: wo });
@@ -312,8 +312,8 @@ router.post('/ncrs', authenticate, requireRole('ENGINEER'), async (req, res) => 
     });
 
     await prisma.auditLog.create({
-      data: { userId: req.user.id, orgId: req.user.orgId,
-              action: 'ncr.created', resourceId: ncr.id, outcome: 'success',
+      data: { userId: req.user.id, orgId: req.user.orgId ?? null,
+              action: 'ncr.created', resource: 'ncr', resourceId: ncr.id, outcome: 'success',
               metadata: { number, severity, partNumber } },
     }).catch(() => {});
 

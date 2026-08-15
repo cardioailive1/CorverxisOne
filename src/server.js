@@ -131,11 +131,13 @@ app.post('/api/register', async (req, res) => {
 
     await prisma.auditLog.create({
       data: {
-        userId:  user.id,
-        orgId:   resolvedOrgId,
-        action:  isSuperAdmin ? 'user.register_super_admin' : 'user.register_pending',
-        outcome: 'success',
-        metadata: { role, email },
+        userId:    user.id,
+        orgId:     resolvedOrgId ?? null,
+        action:    isSuperAdmin ? 'user.register_super_admin' : 'user.register_pending',
+        resource:  'user',
+        resourceId: user.id,
+        outcome:   'success',
+        metadata:  { role, email },
       },
     }).catch(() => {});
 

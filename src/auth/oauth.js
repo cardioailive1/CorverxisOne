@@ -76,9 +76,10 @@ async function handleOAuthCallback(profile, provider, done) {
     await prisma.auditLog.create({
       data: {
         userId:   user.id,
-        orgId:    user.orgId,
+        orgId:    user.orgId ?? null,
         action:   'auth.oauth_login',
         resource: 'user',
+        resourceId: user.id,
         outcome:  user.approved ? 'success' : 'pending',
         metadata: { provider, email },
       },

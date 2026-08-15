@@ -243,6 +243,7 @@ model AuditLog {
   id         String   @id @default(cuid())
   userId     String?
   user       User?    @relation(fields: [userId], references: [id])
+  orgId      String?
   action     String
   resource   String?
   resourceId String?
@@ -251,6 +252,7 @@ model AuditLog {
   timestamp  DateTime @default(now())
 
   @@index([userId])
+  @@index([orgId])
   @@index([timestamp])
   @@map("audit_logs")
 }

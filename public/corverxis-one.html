@@ -685,6 +685,9 @@ function nav(id) {
   var ni = document.getElementById('ni-' + id);
   if (pg) pg.classList.add('active');
   if (ni) ni.classList.add('active');
+  // Lazy-load iframes on first visit
+  if (id === 'sensormodel') { loadSensorModelFrame(); }
+  if (id === 'vision')      { loadVisionFrame(); }
 }
 function showMo(id){ document.getElementById(id).classList.add('open'); }
 function hideMo(id){ document.getElementById(id).classList.remove('open'); }
@@ -1354,13 +1357,20 @@ var _visionObserver = new MutationObserver(function(mutations) {
     if (m.target && m.target.id === 'pg-vision' && m.target.classList.contains('active')) {
       loadVisionFrame();
     }
+    if (m.target && m.target.id === 'pg-sensormodel' && m.target.classList.contains('active')) {
+      loadSensorModelFrame();
+    }
   });
 });
 
 document.addEventListener('DOMContentLoaded', function() {
-  var pg = document.getElementById('pg-vision');
-  if (pg) {
-    _visionObserver.observe(pg, { attributes: true, attributeFilter: ['class'] });
+  var pgVision = document.getElementById('pg-vision');
+  if (pgVision) {
+    _visionObserver.observe(pgVision, { attributes: true, attributeFilter: ['class'] });
+  }
+  var pgSM = document.getElementById('pg-sensormodel');
+  if (pgSM) {
+    _visionObserver.observe(pgSM, { attributes: true, attributeFilter: ['class'] });
   }
 });
 </script>
