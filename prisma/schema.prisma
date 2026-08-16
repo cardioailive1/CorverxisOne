@@ -8,18 +8,23 @@ datasource db {
 }
 
 model Org {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  plan      OrgPlan  @default(STARTER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String           @id @default(cuid())
+  name           String
+  slug           String           @unique
+  plan           OrgPlan          @default(STARTER)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
   users          User[]
+  assets         Asset[]
   workOrders     WorkOrder[]
   lines          ProductionLine[]
   ncrs           Ncr[]
   suppliers      Supplier[]
-  assets    Asset[]
+  inventoryItems InventoryItem[]
+  boms           BOM[]
+  auditLogs      AuditLog[]
+  counters       Counter[]
+  emailLogs      EmailLog[]
 
   @@map("orgs")
 }
@@ -244,6 +249,7 @@ model AuditLog {
   userId     String?
   user       User?    @relation(fields: [userId], references: [id])
   orgId      String?
+  org        Org?     @relation(fields: [orgId], references: [id])
   action     String
   resource   String?
   resourceId String?
@@ -422,6 +428,7 @@ model PurchaseOrder {
 model Counter {
   id        String   @id @default(cuid())
   orgId     String
+  org       Org      @relation(fields: [orgId], references: [id])
   key       String
   value     Int      @default(0)
   updatedAt DateTime @updatedAt
@@ -434,6 +441,7 @@ model Counter {
 model EmailLog {
   id        String   @id @default(cuid())
   orgId     String?
+  org       Org?     @relation(fields: [orgId], references: [id])
   to        String
   subject   String
   body      String   @db.Text
