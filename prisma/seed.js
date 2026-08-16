@@ -378,7 +378,173 @@ async function seedDynamicData() {
 }
 
 // Run both
+
+// ── Inventory & BOM seed ──────────────────────────────────────
+async function seedInventory() {
+  console.log('🌱 Seeding inventory...');
+  const org = await prisma.org.findUnique({ where: { slug: 'corverxis-demo' } });
+  if (!org) return;
+
+  const suppliers = await prisma.supplier.findMany({ where: { orgId: org.id } });
+  const supMap = {};
+  suppliers.forEach(s => { supMap[s.name] = s.id; });
+
+  const ITEMS = [
+    // Raw Materials
+    { id:'inv-abs881',     partNumber:'ABS-881',        description:'ABS Sensor Module',         category:'RAW_MATERIAL', uom:'EA',  onHand:4200,   safetyStock:5000,  reorderPoint:7000,  reorderQty:10000, unitCost:12.50, supplierId: supMap['Bosch GmbH'],         leadTimeDays:14, lotTracked:true  },
+    { id:'inv-sl7821',     partNumber:'SL-7821-S',      description:'Fuel Injector Seal Kit',    category:'RAW_MATERIAL', uom:'EA',  onHand:12000,  safetyStock:10000, reorderPoint:15000, reorderQty:20000, unitCost:1.95,  supplierId: supMap['Parker Hannifin'],    leadTimeDays:8  },
+    { id:'inv-em4471',     partNumber:'EM-4471',        description:'Engine Mount Rubber',        category:'RAW_MATERIAL', uom:'EA',  onHand:28400,  safetyStock:10000, reorderPoint:20000, reorderQty:30000, unitCost:4.80,  supplierId: supMap['Magna International'],leadTimeDays:6  },
+    { id:'inv-tc2291',     partNumber:'TC-2291-HX',     description:'Turbocharger Bearing',      category:'RAW_MATERIAL', uom:'EA',  onHand:840,    safetyStock:500,   reorderPoint:1200,  reorderQty:2000,  unitCost:48.00, supplierId: supMap['Magna International'],leadTimeDays:21, lotTracked:true  },
+    { id:'inv-ti6al4v',    partNumber:'TI-6AL4V-BAR',   description:'Titanium Alloy Billet',     category:'RAW_MATERIAL', uom:'KG',  onHand:120,    safetyStock:80,    reorderPoint:150,   reorderQty:500,   unitCost:85.00, supplierId: supMap['Precision Castparts'],leadTimeDays:30, lotTracked:true  },
+    { id:'inv-brk-cast',   partNumber:'BRK-CAST-48210', description:'Brake Caliper Casting',     category:'RAW_MATERIAL', uom:'EA',  onHand:8400,   safetyStock:3000,  reorderPoint:5000,  reorderQty:10000, unitCost:24.00, leadTimeDays:10 },
+    { id:'inv-brk-fluid',  partNumber:'BF-DOT4',        description:'DOT 4 Brake Fluid',         category:'CONSUMABLE',   uom:'LTR', onHand:850,    safetyStock:200,   reorderPoint:500,   reorderQty:1000,  unitCost:3.80,  supplierId: supMap['Henkel AG'],          leadTimeDays:4  },
+    { id:'inv-evcel',      partNumber:'EV-CELL-NMC',    description:'EV Li-NMC Cell Module',     category:'RAW_MATERIAL', uom:'EA',  onHand:420,    safetyStock:200,   reorderPoint:400,   reorderQty:800,   unitCost:185.00,leadTimeDays:21, lotTracked:true  },
+    { id:'inv-brg6205',    partNumber:'BRG-6205-C3',    description:'Deep Groove Ball Bearing',  category:'RAW_MATERIAL', uom:'EA',  onHand:3100,   safetyStock:1000,  reorderPoint:2000,  reorderQty:5000,  unitCost:4.20,  supplierId: supMap['Magna International'],leadTimeDays:5  },
+    { id:'inv-pcb-ecu',    partNumber:'PCB-ECU-V3',     description:'ECU Printed Circuit Board', category:'RAW_MATERIAL', uom:'EA',  onHand:680,    safetyStock:300,   reorderPoint:500,   reorderQty:1000,  unitCost:42.00, supplierId: supMap['Continental AG'],     leadTimeDays:14, lotTracked:true  },
+    // WIP
+    { id:'inv-brk-asm',    partNumber:'BRK-ASM-SEMI',   description:'Brake Caliper Sub-Assembly', category:'WIP',         uom:'EA',  onHand:240,    safetyStock:100,   reorderPoint:200,   reorderQty:0,     unitCost:68.00, leadTimeDays:0  },
+    { id:'inv-ev-tray',    partNumber:'BT-TRAY-SEMI',   description:'EV Battery Tray WIP',       category:'WIP',          uom:'EA',  onHand:48,     safetyStock:20,    reorderPoint:40,    reorderQty:0,     unitCost:320.00,leadTimeDays:0  },
+    // Finished Goods
+    { id:'inv-brk-fg',     partNumber:'BRK-48210-06290',description:'Brake Caliper Assy - Toyota',category:'FINISHED_GOOD',uom:'EA', onHand:984,    safetyStock:500,   reorderPoint:800,   reorderQty:0,     unitCost:124.00,leadTimeDays:0  },
+    { id:'inv-as9-fg',     partNumber:'AS9-4410-ASSY',  description:'Aerospace Strut Assembly',  category:'FINISHED_GOOD',uom:'EA',  onHand:16,     safetyStock:5,     reorderPoint:10,    reorderQty:0,     unitCost:2840.00,leadTimeDays:0 },
+    // Tooling & Consumables
+    { id:'inv-tool-insert',partNumber:'CNCINSERT-TNMG', description:'CNC Carbide Insert TNMG',   category:'TOOLING',      uom:'EA',  onHand:840,    safetyStock:200,   reorderPoint:400,   reorderQty:1000,  unitCost:8.40,  leadTimeDays:3  },
+    { id:'inv-coolant',    partNumber:'COOLANT-HOCUT',  description:'CNC Cutting Fluid Hocut',   category:'CONSUMABLE',   uom:'LTR', onHand:320,    safetyStock:100,   reorderPoint:200,   reorderQty:500,   unitCost:4.20,  leadTimeDays:2  },
+  ];
+
+  for (const item of ITEMS) {
+    await prisma.inventoryItem.upsert({
+      where:  { id: item.id },
+      update: {},
+      create: { ...item, orgId: org.id },
+    });
+  }
+
+  // Seed stock transactions for ABS-881 to show history
+  const absItem = await prisma.inventoryItem.findUnique({ where: { id: 'inv-abs881' } });
+  if (absItem) {
+    const TXN_HISTORY = [
+      { type:'RECEIPT',       qty:10000, qtyBefore:0,     qtyAfter:10000, reference:'PO-8810', reason:'Initial receipt from Bosch', daysAgo:30 },
+      { type:'ISSUE',         qty:2400,  qtyBefore:10000, qtyAfter:7600,  workOrderId:'wo-2847', reason:'Issue to WO-2847 Ford ABS', daysAgo:22 },
+      { type:'ISSUE',         qty:1800,  qtyBefore:7600,  qtyAfter:5800,  workOrderId:'wo-2840', reason:'Issue to WO-2840 GM production', daysAgo:15 },
+      { type:'ADJUSTMENT_OUT',qty:200,   qtyBefore:5800,  qtyAfter:5600,  reason:'Scrap — ESD damage found during inspection', daysAgo:10 },
+      { type:'RECEIPT',       qty:500,   qtyBefore:5600,  qtyAfter:6100,  reference:'PO-8815-PARTIAL', reason:'Partial receipt from Bosch', daysAgo:7 },
+      { type:'ISSUE',         qty:1900,  qtyBefore:6100,  qtyAfter:4200,  workOrderId:'wo-2851', reason:'Issue to WO-2851 Toyota brake caliper', daysAgo:3 },
+    ];
+    for (const t of TXN_HISTORY) {
+      await prisma.stockTransaction.create({
+        data: {
+          itemId: absItem.id, type: t.type, qty: t.qty,
+          qtyBefore: t.qtyBefore, qtyAfter: t.qtyAfter,
+          unitCost: 12.50, reference: t.reference || null,
+          workOrderId: t.workOrderId || null, reason: t.reason,
+          createdAt: new Date(Date.now() - t.daysAgo * 86400000),
+        },
+      }).catch(() => {});
+    }
+  }
+
+  // Seed a BOM for brake caliper
+  const bom = await prisma.bOM.upsert({
+    where: { id: 'bom-brk-48210' }, update: {},
+    create: { id:'bom-brk-48210', orgId:org.id, name:'Brake Caliper BOM', partNumber:'48210-06290', revision:'Rev G', description:'Toyota Brake Caliper Assembly', qty:1 },
+  });
+
+  const BOM_LINES = [
+    { itemId:'inv-brk-cast', seq:10, qty:1,  uom:'EA', refDes:'BODY',     critical:true,  notes:'Main caliper body casting' },
+    { itemId:'inv-abs881',   seq:20, qty:1,  uom:'EA', refDes:'SENSOR',   critical:true,  notes:'ABS wheel speed sensor' },
+    { itemId:'inv-sl7821',   seq:30, qty:2,  uom:'EA', refDes:'SEAL1,2',  critical:true,  notes:'Piston seals x2' },
+    { itemId:'inv-brg6205',  seq:40, qty:2,  uom:'EA', refDes:'BRG1,2',   critical:false, notes:'Guide pin bearings' },
+    { itemId:'inv-brk-fluid',seq:50, qty:0.1,uom:'LTR',refDes:'FLUID',    critical:false, notes:'Brake fluid fill' },
+    { itemId:'inv-tool-insert',seq:60,qty:0.05,uom:'EA',refDes:'TOOLING', critical:false, notes:'Tooling amortisation' },
+  ];
+  for (const line of BOM_LINES) {
+    await prisma.bomLine.upsert({
+      where: { id: `bomline-brk-${line.seq}` },
+      update: {},
+      create: { id:`bomline-brk-${line.seq}`, bomId: bom.id, ...line },
+    }).catch(() => {});
+  }
+
+  // Seed lots for lot-tracked items
+  await prisma.inventoryLot.upsert({
+    where: { id:'lot-abs-2024-001' }, update: {},
+    create: { id:'lot-abs-2024-001', itemId:'inv-abs881', lotNumber:'LOT-2024-001', qty:4200, qtyUsed:5800, supplierId: supMap['Bosch GmbH']||null, certRef:'PO-8810', status:'ACTIVE' },
+  }).catch(() => {});
+
+  await prisma.inventoryLot.upsert({
+    where: { id:'lot-ti-2024-001' }, update: {},
+    create: { id:'lot-ti-2024-001', itemId:'inv-ti6al4v', lotNumber:'TI-2024-CERT-004', qty:120, supplierId: supMap['Precision Castparts']||null, certRef:'CERT-AS9100-0441', status:'ACTIVE', notes:'DFARS compliant titanium alloy' },
+  }).catch(() => {});
+
+  // Seed supplier audits
+  for (const sup of suppliers) {
+    await prisma.supplierAudit.upsert({
+      where: { id:`audit-${sup.id}` }, update: {},
+      create: {
+        id:`audit-${sup.id}`, supplierId: sup.id,
+        auditType: 'IATF_16949', plannedDate: new Date(Date.now() + 14*86400000),
+        auditorName: 'Quality Assurance Team', status: 'PLANNED',
+        notes: 'Annual IATF 16949 supplier audit',
+      },
+    }).catch(() => {});
+  }
+
+  // Seed supplier qualifications
+  const qualData = [
+    { sup:'Continental AG',      std:'IATF 16949:2016', cert:'IATF-2024-0441', exp:'2026-12-31', body:'Bureau Veritas' },
+    { sup:'Magna International', std:'IATF 16949:2016', cert:'IATF-2023-1882', exp:'2026-08-15', body:'TÜV Rheinland' },
+    { sup:'Precision Castparts', std:'AS9100D',          cert:'AS9-2024-0088',  exp:'2027-01-01', body:'DNV GL' },
+    { sup:'Bosch GmbH',          std:'IATF 16949:2016', cert:'IATF-2023-0211', exp:'2025-06-30', body:'TÜV SÜD' },
+    { sup:'Parker Hannifin',     std:'ISO 9001:2015',   cert:'ISO-2022-4421',  exp:'2025-09-30', body:'SGS' },
+    { sup:'Henkel AG',           std:'ISO 9001:2015',   cert:'ISO-2023-8811',  exp:'2026-03-31', body:'Bureau Veritas' },
+  ];
+  for (const q of qualData) {
+    const sup = suppliers.find(s => s.name === q.sup);
+    if (!sup) continue;
+    await prisma.supplierQualification.create({
+      data: {
+        supplierId: sup.id, standard: q.std, certNumber: q.cert,
+        expiresAt: new Date(q.exp), body: q.body, status: 'ACTIVE',
+        scope: 'Design and manufacture of automotive components',
+      },
+    }).catch(() => {});
+  }
+
+  // Seed supplier contacts
+  const contactData = [
+    { sup:'Bosch GmbH',      name:'Klaus Weber',     role:'Quality Manager',       email:'k.weber@bosch.com',      phone:'+49 711 811 0', isPrimary:true },
+    { sup:'Continental AG',  name:'Anna Müller',     role:'Account Manager',       email:'a.muller@conti.com',     phone:'+49 69 7603 0', isPrimary:true },
+    { sup:'Parker Hannifin', name:'James Morrison',  role:'Supply Chain Manager',  email:'j.morrison@parker.com',  phone:'+1 216 896 3000', isPrimary:true },
+    { sup:'Magna International',name:'Pierre Dubois',role:'SQE - Supplier Quality',email:'p.dubois@magna.com',    phone:'+1 905 726 7100', isPrimary:true },
+  ];
+  for (const c of contactData) {
+    const sup = suppliers.find(s => s.name === c.sup);
+    if (!sup) continue;
+    await prisma.supplierContact.create({
+      data: { supplierId: sup.id, name: c.name, role: c.role, email: c.email, phone: c.phone, isPrimary: c.isPrimary },
+    }).catch(() => {});
+  }
+
+  // Seed development plans for watch-listed suppliers
+  await prisma.supplierDevelopmentPlan.create({
+    data: { supplierId: supMap['Bosch GmbH']||'', title:'OTIF Improvement to 95%', target:'OTIF ≥ 95% sustained for 3 months',
+            targetDate: new Date(Date.now() + 90*86400000), owner:'Supply Chain Manager', status:'OPEN', progress:35,
+            notes:'Bosch committed to root cause analysis and delivery schedule review' },
+  }).catch(() => {});
+
+  await prisma.supplierDevelopmentPlan.create({
+    data: { supplierId: supMap['Parker Hannifin']||'', title:'PPM Reduction to <10', target:'Incoming PPM below 10 by Q3',
+            targetDate: new Date(Date.now() + 120*86400000), owner:'SQE Team', status:'OPEN', progress:20,
+            notes:'Parker to implement SPC on critical dimensions' },
+  }).catch(() => {});
+
+  console.log(`✓ Inventory: ${ITEMS.length} items, 1 BOM, ${BOM_LINES.length} BOM lines`);
+  console.log(`✓ Supplier: audits, qualifications, contacts, dev plans seeded`);
+}
+
 main()
   .then(() => seedDynamicData())
+  .then(() => seedInventory())
   .catch((e) => { console.error('❌ Seed failed:', e); process.exit(1); })
   .finally(async () => { await prisma.$disconnect(); });

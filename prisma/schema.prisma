@@ -278,6 +278,8 @@ model WorkOrder {
   notes       String?
   autoRaised  Boolean          @default(false)
   autoSource  String?
+  bomId       String?
+  bom         BOM?             @relation(fields: [bomId], references: [id])
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -359,6 +361,11 @@ model Supplier {
   currency       String          @default("USD")
   scars          Scar[]
   purchaseOrders PurchaseOrder[]
+  inventoryItems InventoryItem[]
+  audits         SupplierAudit[]
+  qualifications SupplierQualification[]
+  contacts       SupplierContact[]
+  devPlans       SupplierDevelopmentPlan[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -437,4 +444,216 @@ model EmailLog {
 
   @@index([orgId])
   @@map("email_logs")
+}
+
+// ── Inventory & BOM ────────────────────────────────────────────
+model InventoryItem {
+  id              String           @id @default(cuid())
+  orgId           String
+  org             Org              @relation(fields: [orgId], references: [id])
+  partNumber      String
+  description     String
+  category        InventoryCategory @default(RAW_MATERIAL)
+  uom             String           @default("EA")
+  onHand          Float            @default(0)
+  safetyStock     Float            @default(0)
+  reorderPoint    Float            @default(0)
+  reorderQty      Float            @default(0)
+  unitCost        Float            @default(0)
+  currency        String           @default("USD")
+  location        String?
+  warehouse       String?
+  supplierId      String?
+  supplier        Supplier?        @relation(fields: [supplierId], references: [id])
+  leadTimeDays    Int              @default(7)
+  lotTracked      Boolean          @default(false)
+  serialTracked   Boolean          @default(false)
+  active          Boolean          @default(true)
+  transactions    StockTransaction[]
+  bomLines        BomLine[]
+  lots            InventoryLot[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([orgId, partNumber])
+  @@index([orgId])
+  @@index([category])
+  @@map("inventory_items")
+}
+
+enum InventoryCategory {
+  RAW_MATERIAL
+  WIP
+  FINISHED_GOOD
+  CONSUMABLE
+  TOOLING
+  SPARE_PART
+  PACKAGING
+}
+
+model StockTransaction {
+  id          String        @id @default(cuid())
+  itemId      String
+  item        InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  type        TxnType
+  qty         Float
+  qtyBefore   Float
+  qtyAfter    Float
+  unitCost    Float?
+  reference   String?
+  workOrderId String?
+  lotNumber   String?
+  location    String?
+  reason      String?
+  notes       String?
+  createdBy   String?
+  createdAt   DateTime      @default(now())
+
+  @@index([itemId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("stock_transactions")
+}
+
+enum TxnType {
+  RECEIPT        // goods received from supplier
+  ISSUE          // issued to production / work order
+  RETURN         // returned from production
+  ADJUSTMENT_IN  // manual positive adjustment
+  ADJUSTMENT_OUT // manual negative adjustment
+  TRANSFER       // moved between locations
+  SCRAP          // scrapped / written off
+  CYCLE_COUNT    // cycle count correction
+}
+
+model BOM {
+  id          String    @id @default(cuid())
+  orgId       String
+  org         Org       @relation(fields: [orgId], references: [id])
+  name        String
+  partNumber  String
+  revision    String    @default("Rev A")
+  description String?
+  qty         Float     @default(1)
+  uom         String    @default("EA")
+  active      Boolean   @default(true)
+  lines       BomLine[]
+  workOrders  WorkOrder[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([orgId])
+  @@map("boms")
+}
+
+model BomLine {
+  id          String        @id @default(cuid())
+  bomId       String
+  bom         BOM           @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  itemId      String
+  item        InventoryItem @relation(fields: [itemId], references: [id])
+  seq         Int           @default(10)
+  qty         Float
+  uom         String        @default("EA")
+  refDes      String?
+  notes       String?
+  critical    Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+
+  @@index([bomId])
+  @@index([itemId])
+  @@map("bom_lines")
+}
+
+model InventoryLot {
+  id          String        @id @default(cuid())
+  itemId      String
+  item        InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  lotNumber   String
+  qty         Float
+  qtyUsed     Float         @default(0)
+  supplierId  String?
+  receivedAt  DateTime      @default(now())
+  expiresAt   DateTime?
+  status      String        @default("ACTIVE")
+  certRef     String?
+  notes       String?
+  createdAt   DateTime      @default(now())
+
+  @@index([itemId])
+  @@map("inventory_lots")
+}
+
+// ── Supplier Management ────────────────────────────────────────
+model SupplierAudit {
+  id           String   @id @default(cuid())
+  supplierId   String
+  supplier     Supplier @relation(fields: [supplierId], references: [id])
+  auditType    String   @default("ROUTINE")
+  plannedDate  DateTime
+  completedAt  DateTime?
+  auditorName  String?
+  findings     Int      @default(0)
+  majorFindings Int     @default(0)
+  score        Float?
+  status       String   @default("PLANNED")
+  reportRef    String?
+  nextAuditAt  DateTime?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([supplierId])
+  @@map("supplier_audits")
+}
+
+model SupplierQualification {
+  id           String   @id @default(cuid())
+  supplierId   String
+  supplier     Supplier @relation(fields: [supplierId], references: [id])
+  standard     String
+  certNumber   String?
+  issuedAt     DateTime?
+  expiresAt    DateTime?
+  status       String   @default("ACTIVE")
+  scope        String?
+  body         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([supplierId])
+  @@map("supplier_qualifications")
+}
+
+model SupplierContact {
+  id           String   @id @default(cuid())
+  supplierId   String
+  supplier     Supplier @relation(fields: [supplierId], references: [id])
+  name         String
+  role         String?
+  email        String?
+  phone        String?
+  isPrimary    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@index([supplierId])
+  @@map("supplier_contacts")
+}
+
+model SupplierDevelopmentPlan {
+  id           String   @id @default(cuid())
+  supplierId   String
+  supplier     Supplier @relation(fields: [supplierId], references: [id])
+  title        String
+  target       String
+  targetDate   DateTime
+  status       String   @default("OPEN")
+  progress     Int      @default(0)
+  owner        String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([supplierId])
+  @@map("supplier_dev_plans")
 }

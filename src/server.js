@@ -41,6 +41,7 @@ const {
 const authRouter     = require('./routes/auth');
 const adminRouter    = require('./routes/admin');
 const erpRouter      = require('./routes/erp');
+const inventoryRouter = require('./routes/inventory');
 const apiRouter      = require('./routes/api');
 
 const app    = express();
@@ -82,7 +83,8 @@ app.use('/auth/', rateLimit({ windowMs: 60000, max: 30 }));
 app.use('/auth',  authRouter);
 app.use('/admin', adminRouter);
 app.use('/api/erp', erpRouter);
-app.use('/api', erpRouter); // automation/ncrs + automation/log sub-routes
+app.use('/api', erpRouter);
+app.use('/api/v1', inventoryRouter); // automation/ncrs + automation/log sub-routes
 app.use('/api/v1', apiRouter);
 
 // ── Public routes ─────────────────────────────────────────────────────────────
