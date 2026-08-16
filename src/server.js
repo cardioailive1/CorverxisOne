@@ -34,8 +34,13 @@ const fs           = require('fs');
 const { prisma }     = require('./prisma');
 const { passport }   = require('./auth/oauth');
 const { authenticate, requireRole, requirePermission } = require('./middleware/rbac');
+const {
+  autoNcrFromVisionFail,
+  autoNcrFromSensorCrit,
+} = require('./automation');
 const authRouter     = require('./routes/auth');
 const adminRouter    = require('./routes/admin');
+const erpRouter      = require('./routes/erp');
 const apiRouter      = require('./routes/api');
 
 const app    = express();
@@ -76,6 +81,8 @@ app.use('/auth/', rateLimit({ windowMs: 60000, max: 30 }));
 // ── Auth & Admin routers ──────────────────────────────────────────────────────
 app.use('/auth',  authRouter);
 app.use('/admin', adminRouter);
+app.use('/api/erp', erpRouter);
+app.use('/api', erpRouter); // automation/ncrs + automation/log sub-routes
 app.use('/api/v1', apiRouter);
 
 // ── Public routes ─────────────────────────────────────────────────────────────
@@ -254,6 +261,18 @@ app.post('/api/sensors/:id/reading', authenticate, requireRole('TECHNICIAN'), as
                 threshold: status === 'CRITICAL' ? thr.crit : thr.warn },
       });
     }
+    // Auto-raise NCR if sensor crosses CRITICAL threshold
+    if (status === 'CRITICAL') {
+      const sensorWithAsset = await prisma.sensor.findUnique({
+        where: { id: sensor.id },
+        include: { asset: true },
+      });
+      autoNcrFromSensorCrit({
+        sensor: sensorWithAsset || sensor,
+        value:  parseFloat(value),
+        orgId:  sensorWithAsset?.asset?.orgId || req.user?.orgId || null,
+      }).catch(e => console.error('[AUTO] NCR from sensor crit failed:', e.message));
+    }
     res.status(201).json({ success: true, reading, status });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -309,7 +328,19 @@ app.post('/api/vision/result', authenticate, requireRole('ENGINEER'), async (req
               failCount:  !isPass ? { increment: 1 } : undefined,
               avgCycleMs: newAvg },
     });
-    res.status(201).json({ success: true, sessionId: sess.id });
+    // Auto-raise NCR if inspection failed
+    if (!isPass) {
+      autoNcrFromVisionFail({
+        jobId,
+        sessionId:   sess.id,
+        confidence:  parseFloat(confidence) || 0,
+        defectCount: parseInt(defectCount)  || 0,
+        defectTypes: Array.isArray(defectTypes) ? defectTypes : [],
+        cycleMs:     parseFloat(cycleMs),
+        orgId:       req.user?.orgId || null,
+      }).catch(e => console.error('[AUTO] NCR from vision fail:', e.message));
+    }
+    res.status(201).json({ success: true, sessionId: sess.id, autoNcr: !isPass });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

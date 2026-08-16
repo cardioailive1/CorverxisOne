@@ -1,7 +1,7 @@
 {
   "name": "corverxis-platform",
   "version": "1.0.0",
-  "description": "Corverxis Technologies — Enterprise AI Platform",
+  "description": "Corverxis Technologies \u2014 Enterprise AI Platform",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
@@ -27,7 +27,8 @@
     "passport-github2": "^0.1.12",
     "passport-google-oauth20": "^2.0.0",
     "passport-microsoft": "^1.0.0",
-    "ws": "^8.16.0"
+    "ws": "^8.16.0",
+    "nodemailer": "^6.9.8"
   },
   "devDependencies": {
     "prisma": "^5.7.0"

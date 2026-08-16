@@ -276,6 +276,8 @@ model WorkOrder {
   line        ProductionLine?  @relation(fields: [lineId], references: [id])
   createdBy   String?
   notes       String?
+  autoRaised  Boolean          @default(false)
+  autoSource  String?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -328,11 +330,15 @@ model Ncr {
   closedBy          String?
   correctiveAction  String?
   rootCause         String?
+  autoRaised        Boolean    @default(false)
+  autoSource        String?
+  emailSent         Boolean    @default(false)
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 
   @@index([orgId])
   @@index([status])
+  @@index([autoRaised])
   @@map("ncrs")
 }
 
@@ -402,4 +408,33 @@ model PurchaseOrder {
 
   @@index([supplierId])
   @@map("purchase_orders")
+}
+
+// ── Sequence Counters ─────────────────────────────────────────
+// Used for auto-incrementing NCR and WO numbers per org
+model Counter {
+  id        String   @id @default(cuid())
+  orgId     String
+  key       String
+  value     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([orgId, key])
+  @@map("counters")
+}
+
+// ── Email Notifications ────────────────────────────────────────
+model EmailLog {
+  id        String   @id @default(cuid())
+  orgId     String?
+  to        String
+  subject   String
+  body      String   @db.Text
+  status    String   @default("pending")
+  sentAt    DateTime?
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@index([orgId])
+  @@map("email_logs")
 }
