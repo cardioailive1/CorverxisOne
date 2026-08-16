@@ -543,8 +543,78 @@ async function seedInventory() {
   console.log(`✓ Supplier: audits, qualifications, contacts, dev plans seeded`);
 }
 
+
+async function seedProcessImprovement() {
+  console.log('🌱 Seeding process improvement...');
+  const org   = await prisma.org.findUnique({ where: { slug: 'corverxis-demo' } });
+  if (!org) return;
+  const lines = await prisma.productionLine.findMany({ where: { orgId: org.id } });
+  const lineMap = {};
+  lines.forEach(l => { lineMap[l.name] = l.id; });
+
+  const PROJECTS = [
+    { id:'pi-0001', number:'PI-0001', title:'Brake Caliper Bore Diameter DMAIC', type:'DMAIC', status:'IN_PROGRESS', dmaicPhase:'Control', sigmaLevel:4.2, sigmaTarget:5.0, department:'Quality', champion:'Quality Manager', teamSize:5, description:'Six Sigma DMAIC project to improve bore diameter process capability on Line 2.', problem:'Bore OD variability causing 0.12mm exceedance. PPM: 48.', currentState:'Sigma level 4.2 — 48 PPM defect rate', targetState:'Sigma level 5.0 — <6 PPM', savingPerMonth:8400, priority:1, lineKey:'Line 2 - Brake Calipers', oeeBeforeStr:'82%', cycleTimeBefore:8.4, scrapBefore:1.8 },
+    { id:'pi-0002', number:'PI-0002', title:'Line 4 Changeover SMED Reduction', type:'SMED', status:'IN_PROGRESS', dmaicPhase:null, department:'Manufacturing', champion:'Plant Manager', teamSize:6, description:'Single Minute Exchange of Die — reduce changeover from 42 min to under 28 min.', problem:'42-minute average changeover on Line 4 limiting production flexibility.', currentState:'42 min avg changeover', targetState:'28 min (33% reduction)', savingPerMonth:12000, priority:1, lineKey:'Line 4 - Fuel Systems', cycleTimeBefore:42 },
+    { id:'pi-0003', number:'PI-0003', title:'NCR 8D Root Cause AI Automation', type:'AUTOMATION', status:'IN_PROGRESS', department:'Quality', champion:'Quality Director', teamSize:3, description:'LLM-assisted 8D root cause analysis reduces manual analysis from 4h to 45 min.', currentState:'4h manual avg per NCR', targetState:'45 min AI-assisted', savingPerMonth:9600, actualSaving:8800, priority:2 },
+    { id:'pi-0004', number:'PI-0004', title:'Aerospace Line 5 First-Off Inspection', type:'KAIZEN', status:'IN_PROGRESS', department:'Quality', champion:'Process Engineer', teamSize:4, description:'Digitise first-off inspection using AI-assisted CMM result review.', currentState:'90 min manual first-off', targetState:'25 min AI-assisted', savingPerMonth:5200, priority:2, lineKey:'Line 5 - Aerospace', cycleTimeBefore:90, cycleTimeAfter:25 },
+    { id:'pi-0005', number:'PI-0005', title:'Supplier OTIF Improvement Programme', type:'DMAIC', status:'IN_PROGRESS', dmaicPhase:'Analyze', sigmaLevel:3.1, sigmaTarget:4.0, department:'Supply Chain', champion:'Supply Chain Director', teamSize:4, description:'DMAIC to improve Bosch and Parker OTIF from 88-91% to 95%+.', problem:'Two key suppliers below 95% OTIF target. Impacting WO delivery.', currentState:'Bosch 88% / Parker 91% OTIF', targetState:'All Tier 1 suppliers ≥ 95%', savingPerMonth:6800, priority:2 },
+    { id:'pi-0006', number:'PI-0006', title:'EV Battery Tray Scrap Reduction', type:'DMAIC', status:'IN_PROGRESS', dmaicPhase:'Measure', sigmaLevel:3.4, sigmaTarget:4.2, department:'Manufacturing', champion:'Process Engineer', teamSize:5, description:'EV battery tray scrap currently at 4.2%. Target <1.5%.', currentState:'4.2% scrap rate — Line 6', targetState:'<1.5% scrap rate', savingPerMonth:14000, priority:1, lineKey:'Line 6 - EV Battery Trays', scrapBefore:4.2 },
+    { id:'pi-0007', number:'PI-0007', title:'Warehouse Pick Path Optimisation', type:'LEAN', status:'IN_PROGRESS', department:'Warehouse', champion:'Operations Manager', teamSize:3, description:'AI routing for warehouse picks. Current 8.4 min avg pick time. Target 5.2 min.', currentState:'8.4 min avg pick', targetState:'5.2 min avg pick', savingPerMonth:3200, priority:3 },
+    { id:'pi-0008', number:'PI-0008', title:'PPAP Document Assembly Automation', type:'AUTOMATION', status:'OPEN', department:'Quality / Engineering', champion:'Quality Manager', teamSize:3, description:'Doc AI assembles 14/18 PPAP elements automatically from DMS. Reduces 12h to 2h.', currentState:'12h manual per PPAP', targetState:'AI assembles 14/18 elements — 2h total', savingPerMonth:4480, priority:2 },
+  ];
+
+  for (const p of PROJECTS) {
+    const { lineKey, ...data } = p;
+    await prisma.improvementProject.upsert({
+      where:  { id: p.id },
+      update: {},
+      create: { ...data, orgId: org.id, startDate: new Date(Date.now() - 30*86400000), lineId: lineKey ? lineMap[lineKey] : null },
+    }).catch(() => {});
+  }
+
+  // Kaizen events
+  const KAIZEN = [
+    { id:'ke-001', projectId:'pi-0002', lineKey:'Line 4 - Fuel Systems', title:'Video Analysis — Identify NVA Steps', description:'AI analyses changeover video footage to classify value-add vs non-value-add activities.', week:2, totalWeeks:4, teamSize:6, currentMetric:42, targetMetric:28, metricUnit:'min', status:'ACTIVE', actions:'External changeover elements identified: 8 tasks converted to pre-stage.' },
+    { id:'ke-002', projectId:'pi-0004', lineKey:'Line 5 - Aerospace', title:'Digitise First-Off Checklist', description:'Replace paper checklist with tablet-based CMM integration.', week:1, totalWeeks:3, teamSize:4, currentMetric:90, targetMetric:25, metricUnit:'min', status:'ACTIVE' },
+    { id:'ke-003', projectId:'pi-0006', lineKey:'Line 6 - EV Battery Trays', title:'Measure Phase — Baseline Scrap Data', description:'8-week data collection on scrap causes. Pareto analysis of defect types.', week:3, totalWeeks:4, teamSize:5, currentMetric:4.2, targetMetric:1.5, metricUnit:'% scrap', status:'ACTIVE', findings:'Top 3 causes: weld spatter (38%), dimensional OOT (29%), surface contamination (18%).' },
+    { id:'ke-004', projectId:'pi-0001', lineKey:'Line 2 - Brake Calipers', title:'Control Plan Update — SPC on Bore Diameter', description:'Implement real-time SPC on CNC bore operation. X-bar/R charts with AI alerting.', week:4, totalWeeks:4, teamSize:5, currentMetric:4.2, targetMetric:5.0, metricUnit:'σ', status:'ACTIVE', findings:'Control charts implemented. 3 out-of-control signals detected and corrected in 2 weeks.', actions:'SPC integrated with CorverxisONE dashboard. Operators alerted in real-time.' },
+  ];
+
+  for (const k of KAIZEN) {
+    const { lineKey, ...data } = k;
+    await prisma.kaizenEvent.upsert({
+      where:  { id: k.id },
+      update: {},
+      create: { ...data, lineId: lineKey ? lineMap[lineKey] : null, dueAt: new Date(Date.now() + 14*86400000) },
+    }).catch(() => {});
+  }
+
+  // Waste reductions for main KAIZEN projects
+  const WASTES = [
+    { id:'wr-001', projectId:'pi-0001', wasteType:'DEFECTS',          baselinePct:100, currentPct:25, targetPct:90 },
+    { id:'wr-002', projectId:'pi-0001', wasteType:'EXTRA_PROCESSING',  baselinePct:100, currentPct:40, targetPct:60 },
+    { id:'wr-003', projectId:'pi-0002', wasteType:'WAITING',           baselinePct:100, currentPct:41, targetPct:67 },
+    { id:'wr-004', projectId:'pi-0002', wasteType:'MOTION',            baselinePct:100, currentPct:30, targetPct:50 },
+    { id:'wr-005', projectId:'pi-0006', wasteType:'DEFECTS',           baselinePct:100, currentPct:30, targetPct:75 },
+    { id:'wr-006', projectId:'pi-0006', wasteType:'OVERPRODUCTION',    baselinePct:100, currentPct:20, targetPct:40 },
+    { id:'wr-007', projectId:'pi-0007', wasteType:'TRANSPORTATION',    baselinePct:100, currentPct:28, targetPct:38 },
+    { id:'wr-008', projectId:'pi-0007', wasteType:'MOTION',            baselinePct:100, currentPct:38, targetPct:50 },
+  ];
+
+  for (const w of WASTES) {
+    await prisma.wasteReduction.upsert({
+      where:  { id: w.id },
+      update: {},
+      create: w,
+    }).catch(() => {});
+  }
+
+  console.log(`✓ Process improvement: ${PROJECTS.length} projects, ${KAIZEN.length} kaizen events, ${WASTES.length} waste records`);
+}
+
 main()
   .then(() => seedDynamicData())
   .then(() => seedInventory())
+  .then(() => seedProcessImprovement())
   .catch((e) => { console.error('❌ Seed failed:', e); process.exit(1); })
   .finally(async () => { await prisma.$disconnect(); });

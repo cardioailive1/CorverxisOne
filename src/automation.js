@@ -316,6 +316,22 @@ function normaliseErpWo(raw) {
     };
   }
 
+  // Plex Manufacturing Cloud format
+  if (raw.PlexWONo || raw.PartNo) {
+    return {
+      number:      raw.PlexWONo    || raw.WONumber || null,
+      partNumber:  raw.PartNo      || raw.PartNumber,
+      customer:    raw.CustomerCode|| raw.Customer || null,
+      quantity:    raw.Quantity    || raw.PlannedQty || 0,
+      completed:   raw.CompletedQty|| 0,
+      dueDate:     raw.DueDate     || raw.RequiredDate || null,
+      priority:    raw.Priority    || 3,
+      status:      'OPEN',
+      lineName:    raw.WorkCenter  || raw.PlexWorkcenter || null,
+      notes:       'Plex WO ' + (raw.PlexWONo || raw.WONumber),
+    };
+  }
+
   // Fallback — pass through whatever we have
   return raw;
 }

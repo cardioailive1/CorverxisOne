@@ -25,6 +25,7 @@ model Org {
   auditLogs      AuditLog[]
   counters       Counter[]
   emailLogs      EmailLog[]
+  projects       ImprovementProject[]
 
   @@map("orgs")
 }
@@ -315,6 +316,8 @@ model ProductionLine {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
+  projects     ImprovementProject[]
+  kaizenEvents KaizenEvent[]
   @@index([orgId])
   @@map("production_lines")
 }
@@ -664,4 +667,123 @@ model SupplierDevelopmentPlan {
 
   @@index([supplierId])
   @@map("supplier_dev_plans")
+}
+
+// ── Process Improvement ───────────────────────────────────────
+model ImprovementProject {
+  id              String        @id @default(cuid())
+  orgId           String
+  org             Org           @relation(fields: [orgId], references: [id])
+  number          String
+  title           String
+  type            ProjectType   @default(KAIZEN)
+  status          ProjectStatus @default(OPEN)
+  lineId          String?
+  line            ProductionLine? @relation(fields: [lineId], references: [id])
+  department      String?
+  champion        String?
+  teamSize        Int           @default(1)
+  description     String?
+  problem         String?
+  targetState     String?
+  currentState    String?
+  savingPerMonth  Float         @default(0)
+  actualSaving    Float         @default(0)
+  startDate       DateTime?
+  targetDate      DateTime?
+  closedAt        DateTime?
+  priority        Int           @default(3)
+  autoRaised      Boolean       @default(false)
+  autoSource      String?
+  oeeBeforeStr    String?
+  oeeAfterStr     String?
+  cycleTimeBefore Float?
+  cycleTimeAfter  Float?
+  scrapBefore     Float?
+  scrapAfter      Float?
+  dmaicPhase      String?
+  sigmaLevel      Float?
+  sigmaTarget     Float?
+  kaizenEvents    KaizenEvent[]
+  wastes          WasteReduction[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([orgId])
+  @@index([lineId])
+  @@index([status])
+  @@map("improvement_projects")
+}
+
+enum ProjectType {
+  KAIZEN
+  DMAIC
+  SMED
+  VSM
+  AUTOMATION
+  LEAN
+  IDEA
+}
+
+enum ProjectStatus {
+  OPEN
+  IN_PROGRESS
+  ON_HOLD
+  CLOSED
+  CANCELLED
+}
+
+model KaizenEvent {
+  id            String             @id @default(cuid())
+  projectId     String
+  project       ImprovementProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  lineId        String?
+  line          ProductionLine?    @relation(fields: [lineId], references: [id])
+  title         String
+  description   String?
+  week          Int                @default(1)
+  totalWeeks    Int                @default(4)
+  teamSize      Int                @default(4)
+  teamMembers   String?
+  currentMetric Float?
+  targetMetric  Float?
+  metricUnit    String?
+  status        String             @default("ACTIVE")
+  findings      String?
+  actions       String?
+  dueAt         DateTime?
+  closedAt      DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([projectId])
+  @@index([lineId])
+  @@map("kaizen_events")
+}
+
+model WasteReduction {
+  id            String             @id @default(cuid())
+  projectId     String
+  project       ImprovementProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  wasteType     WasteType
+  baselinePct   Float              @default(0)
+  currentPct    Float              @default(0)
+  targetPct     Float
+  notes         String?
+  measuredAt    DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([projectId])
+  @@map("waste_reductions")
+}
+
+enum WasteType {
+  DEFECTS
+  OVERPRODUCTION
+  WAITING
+  NON_UTILISED_TALENT
+  TRANSPORTATION
+  INVENTORY
+  MOTION
+  EXTRA_PROCESSING
 }
