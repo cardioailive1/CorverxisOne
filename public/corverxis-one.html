@@ -211,13 +211,13 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 <div class="pt">Command Center</div>
 <div class="ps">Enterprise-wide intelligence | IATF 16949 | AS9100D | Real-time</div>
 <div class="kg">
-  <div class="kpi"><div class="kpi-l">Plant OEE</div><div class="kpi-v" style="color:var(--green)" id="kv-oee" id="kv-oee">94.2%</div><div class="kpi-s" id="kv-oee-sub" style="color:var(--green)">+1.8% vs last shift</div></div>
-  <div class="kpi"><div class="kpi-l">Units Produced</div><div class="kpi-v" id="kv-units" id="kv-units">4,821</div><div class="kpi-s" id="kv-units-sub" style="color:var(--green)">98.4% of target</div></div>
+  <div class="kpi"><div class="kpi-l">Plant OEE</div><div class="kpi-v" style="color:var(--green)" id="kv-oee">94.2%</div><div class="kpi-s" id="kv-oee-sub" style="color:var(--green)">+1.8% vs last shift</div></div>
+  <div class="kpi"><div class="kpi-l">Units Produced</div><div class="kpi-v" id="kv-units">4,821</div><div class="kpi-s" id="kv-units-sub" style="color:var(--green)">98.4% of target</div></div>
   <div class="kpi"><div class="kpi-l">First Pass Yield</div><div class="kpi-v" style="color:var(--green)" id="kv-fpy">99.1%</div><div class="kpi-s" style="color:var(--green)">+0.3% vs target</div></div>
   <div class="kpi"><div class="kpi-l">Active NCRs</div><div class="kpi-v" style="color:var(--red)" id="kv-ncrs">7</div><div class="kpi-s" id="kv-ncrs-sub" style="color:var(--red)">2 critical open</div></div>
   <div class="kpi"><div class="kpi-l">Supplier OTIF</div><div class="kpi-v" style="color:var(--amber)" id="kv-otif">91.8%</div><div class="kpi-s" id="kv-otif-sub" style="color:var(--amber)">Below 95% target</div></div>
   <div class="kpi"><div class="kpi-l">IIoT Alerts</div><div class="kpi-v" style="color:var(--red)" id="kv-alerts">5</div><div class="kpi-s" id="kv-alerts-sub" style="color:var(--amber)">3 predictive warnings</div></div>
-  <div class="kpi"><div class="kpi-l">On-Time Delivery</div><div class="kpi-v" style="color:var(--green)">97.3%</div><div class="kpi-s" style="color:var(--green)">Above target</div></div>
+  <div class="kpi"><div class="kpi-l">On-Time Delivery</div><div class="kpi-v" style="color:var(--green)" id="mes-kv-otd">97.3%</div><div class="kpi-s" style="color:var(--green)">Above target</div></div>
   <div class="kpi"><div class="kpi-l">Scrap Cost Today</div><div class="kpi-v" style="color:var(--amber)">$4,280</div><div class="kpi-s" style="color:var(--green)">-$1,100 vs yesterday</div></div>
 </div>
 <div class="g2">
@@ -228,18 +228,19 @@ tr:hover td{background:rgba(255,255,255,0.02);}
   <div class="card">
     <div class="ct"><div class="dot" style="background:var(--ocean)"></div>Production Line Status</div>
     <div id="line-status-list"><div style="font-size:11px;color:var(--text3);padding:8px;">Loading lines...</div></div>
-    <div class="gr"><span class="gl">Line 6 - EV Battery Trays</span><div class="gb"><div class="gf" style="width:91%;background:var(--green)"></div></div><span class="gv" style="color:var(--green)">91%</span></div>
   </div>
 </div>
 <div class="g3">
   <div class="card">
     <div class="ct"><div class="dot" style="background:var(--green)"></div>Quality Summary</div>
     <table><tr><th>Metric</th><th>Value</th><th>Status</th></tr>
-    <tr><td>First Pass Yield</td><td>99.1%</td><td><span class="badge ok">OK</span></td></tr>
-    <tr><td>Cpk Index</td><td>1.48</td><td><span class="badge ok">OK</span></td></tr>
-    <tr><td>Open NCRs</td><td>7</td><td><span class="badge warn">REVIEW</span></td></tr>
-    <tr><td>PPAP Active</td><td>3</td><td><span class="badge info">IN PROGRESS</span></td></tr>
-    <tr><td>Audit Findings</td><td>0 major</td><td><span class="badge ok">CLEAR</span></td></tr></table>
+    <tbody id="quality-summary-tbody">
+      <tr><td>First Pass Yield</td><td id="qs-fpy">99.1%</td><td><span class="badge ok">OK</span></td></tr>
+      <tr><td>Active NCRs</td><td id="qs-ncrs">7</td><td><span id="qs-ncrs-badge" class="badge warn">REVIEW</span></td></tr>
+      <tr><td>Vision Pass Rate</td><td id="qs-vision">98.4%</td><td><span id="qs-vision-badge" class="badge ok">OK</span></td></tr>
+      <tr><td>Open SCARs</td><td id="qs-scars">2</td><td><span class="badge warn">OPEN</span></td></tr>
+      <tr><td>Supplier OTIF</td><td id="qs-otif">91.8%</td><td><span id="qs-otif-badge" class="badge warn">REVIEW</span></td></tr>
+    </tbody></table>
   </div>
   <div class="card">
     <div class="ct"><div class="dot" style="background:var(--amber)"></div>Supply Chain Pulse</div>
@@ -265,7 +266,7 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 <div class="pt">MES - Manufacturing Execution System</div>
 <div class="ps">Real-time production tracking | Work orders | Machine utilisation | IATF 16949 Cl. 8.5</div>
 <div class="kg">
-  <div class="kpi"><div class="kpi-l">Active Work Orders</div><div class="kpi-v">847</div><div class="kpi-s" style="color:var(--green)">98% on schedule</div></div>
+  <div class="kpi"><div class="kpi-l">Active Work Orders</div><div class="kpi-v" id="mes-kv-wo">847</div><div class="kpi-s" style="color:var(--green)" id="mes-kv-wo-s">98% on schedule</div></div>
   <div class="kpi"><div class="kpi-l">Machine Utilisation</div><div class="kpi-v" style="color:var(--green)">87.4%</div><div class="kpi-s" style="color:var(--green)">+2.1% vs plan</div></div>
   <div class="kpi"><div class="kpi-l">Labour Efficiency</div><div class="kpi-v" style="color:var(--green)">94.8%</div><div class="kpi-s">vs 92% target</div></div>
   <div class="kpi"><div class="kpi-l">Downtime Today</div><div class="kpi-v" style="color:var(--amber)">38 min</div><div class="kpi-s" style="color:var(--amber)">12 min unplanned</div></div>
@@ -310,12 +311,7 @@ tr:hover td{background:rgba(255,255,255,0.02);}
   </div>
   <div class="card">
     <div class="ct">Line Capacity - This Shift</div>
-    <div class="gr"><span class="gl">Line 1 - Engine Mounts</span><div class="gb"><div class="gf" style="width:96%;background:var(--green)"></div></div><span class="gv" style="color:var(--green)">96%</span></div>
-    <div class="gr"><span class="gl">Line 2 - Brake Calipers</span><div class="gb"><div class="gf" style="width:82%;background:var(--amber)"></div></div><span class="gv" style="color:var(--amber)">82%</span></div>
-    <div class="gr"><span class="gl">Line 3 - Turbochargers</span><div class="gb"><div class="gf" style="width:61%;background:var(--ocean)"></div></div><span class="gv" style="color:var(--ocean)">61%</span></div>
-    <div class="gr"><span class="gl">Line 4 - Fuel Systems</span><div class="gb"><div class="gf" style="width:100%;background:var(--red)"></div></div><span class="gv" style="color:var(--red)">100%</span></div>
-    <div class="gr"><span class="gl">Line 5 - Aerospace</span><div class="gb"><div class="gf" style="width:67%;background:var(--green)"></div></div><span class="gv" style="color:var(--green)">67%</span></div>
-    <div class="gr"><span class="gl">Line 6 - EV Battery</span><div class="gb"><div class="gf" style="width:55%;background:var(--green)"></div></div><span class="gv" style="color:var(--green)">55%</span></div>
+    <div id="sched-line-list"><div style="font-size:11px;color:var(--text3);padding:8px">Loading lines...</div></div>
   </div>
 </div>
 </div>
@@ -733,7 +729,7 @@ function renderSensors() {
     var bc = isCrit ? 'rgba(239,68,68,0.25)' : isWarn ? 'rgba(245,158,11,0.15)' : 'var(--border)';
     var valStr = v > 100 ? Math.round(v).toString() : v.toFixed(s.id==='ev_volt'?3:1);
     var bclass = isCrit ? 'crit' : isWarn ? 'warn' : 'ok';
-    return '<div class="sc" style="border-color:' + bc + '">' +
+    return '<div class="sc" style="border-color:' + bc + ';cursor:pointer;transition:transform .12s,box-shadow .12s" onclick="openSensorDetail(' + JSON.stringify(s) + ',' + v + ')" onmouseenter="this.style.transform=\'translateY(-2px)\';this.style.boxShadow=\'0 4px 20px rgba(0,194,224,0.15)\'" onmouseleave="this.style.transform=\'\';this.style.boxShadow=\'\'\'">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px;">' +
         '<div><div style="font-size:12px;font-weight:600;color:#e2e8f0">' + s.name + '</div>' +
         '<div style="font-size:11px;color:#6b7280">' + s.vert + '</div></div>' +
@@ -744,6 +740,7 @@ function renderSensors() {
         '<span>Warn: ' + s.warn + ' ' + s.unit + '</span>' +
         '<span style="color:' + sc + ';font-weight:700">' + (isCrit?'CRIT':isWarn?'WARN':'OK') + '</span>' +
       '</div>' +
+      '<div style="margin-top:6px;font-size:10px;color:#374151">Click for history →</div>' +
     '</div>';
   }).join('');
 }
@@ -1427,10 +1424,18 @@ var CVX_API = {
         this.setText('kv-alerts', sc.alerts, sc.critical > 0 ? 'var(--red)' : 'var(--amber)');
         this.setText('kv-alerts-sub', sc.critical + ' critical, ' + (sc.alerts - sc.critical) + ' warnings',
           sc.critical > 0 ? 'var(--red)' : 'var(--amber)');
-        this.setText('iiot-kv-sensors', sc.active);
-        this.setText('iiot-kv-alerts', sc.critical);
+        this.setText('iiot-kv-sensors', sc.total || sc.active);
+        this.setText('iiot-kv-alerts', sc.critical, sc.critical > 0 ? 'var(--red)' : 'var(--green)');
         // Sidebar badge
         this.setText('nb-iiot', sc.alerts || '');
+      }
+      // MES KPIs from work orders
+      if (d.workOrders) {
+        var inProg = d.workOrders.filter(function(w){return w.status==='IN_PROGRESS';}).length;
+        this.setText('mes-kv-wo', inProg);
+        var mesWoS = this.el('mes-kv-wo-s');
+        if (mesWoS) mesWoS.textContent = inProg + ' active work orders';
+        this.setText('nb-mes', inProg || '');
       }
 
       // Quality / NCR
@@ -1457,6 +1462,8 @@ var CVX_API = {
       if (d.predictions && d.predictions.length) {
         this.renderPredictions(d.predictions);
       }
+      // Update quality summary card
+      this.updateQualitySummary(d);
     } catch(e) { console.warn('[CVX] dashboard fetch failed:', e.message); }
   },
 
@@ -1562,15 +1569,21 @@ var CVX_API = {
       var r = await fetch(this.BASE + '/lines', {credentials:'same-origin'});
       if (!r.ok) return;
       var d = await r.json();
-      var el = this.el('line-status-list');
-      if (!el || !d.data.length) return;
-      el.innerHTML = d.data.map(function(l) {
-        var pct = l.targetOee || (l.workOrders && l.workOrders.length ? 88 : 95);
-        var col = pct >= 90 ? 'var(--green)' : pct >= 75 ? 'var(--amber)' : 'var(--red)';
-        return '<div class="gr"><span class="gl">' + l.name + '</span>' +
-          '<div class="gb"><div class="gf" style="width:' + Math.round(pct) + '%;background:' + col + '"></div></div>' +
-          '<span class="gv" style="color:' + col + '">' + Math.round(pct) + '%</span></div>';
-      }).join('');
+      var self = this;
+      // Render into ALL line containers (dashboard + scheduling page)
+      ['line-status-list', 'sched-line-list'].forEach(function(elId) {
+        var el = self.el(elId);
+        if (!el || !d.data.length) return;
+        el.innerHTML = d.data.map(function(l) {
+          var activeWO = l.workOrders && l.workOrders.length > 0;
+          var pct = l.targetOee || (activeWO ? Math.round(75 + Math.random()*20) : 95);
+          var col = pct >= 90 ? 'var(--green)' : pct >= 75 ? 'var(--amber)' : 'var(--red)';
+          return '<div class="gr" style="cursor:pointer" onclick="CVX_API.fetchLines()">' +
+            '<span class="gl">' + l.name + '</span>' +
+            '<div class="gb"><div class="gf" style="width:' + Math.round(pct) + '%;background:' + col + ';transition:width .8s"></div></div>' +
+            '<span class="gv" style="color:' + col + '">' + Math.round(pct) + '%</span></div>';
+        }).join('');
+      });
     } catch(e) { console.warn('[CVX] lines fetch failed:', e.message); }
   },
 
@@ -1659,6 +1672,7 @@ var CVX_API = {
     this.fetchSuppliers();
     this.fetchLines();
     this.fetchNCRs();
+    this.fetchVisionStats();
 
     // Poll every 8 seconds
     setInterval(function() {
@@ -1670,6 +1684,7 @@ var CVX_API = {
     setInterval(function() {
       self.fetchSuppliers();
       self.fetchNCRs();
+      self.fetchVisionStats();
     }, 30000);
 
     // WebSocket for real-time sensor stream
@@ -1687,5 +1702,230 @@ if (document.readyState === 'loading') {
 }
 
 </script>
+
+<!-- SENSOR DETAIL DRAWER -->
+<style>
+.sd-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;display:none}
+.sd-overlay.open{display:block}
+.sd-drawer{position:fixed;right:0;top:0;bottom:0;width:420px;max-width:95vw;background:#0d1f3c;border-left:1px solid rgba(255,255,255,.08);z-index:1001;transform:translateX(100%);transition:transform .25s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;overflow:hidden}
+.sd-drawer.open{transform:translateX(0)}
+.sd-hdr{padding:20px 20px 14px;border-bottom:1px solid rgba(255,255,255,.07);flex-shrink:0;position:relative}
+.sd-x{position:absolute;top:14px;right:14px;width:28px;height:28px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#9ca3af;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.sd-x:hover{background:rgba(255,255,255,.12);color:#fff}
+.sd-body{padding:14px 18px;overflow-y:auto;flex:1}
+.sd-krow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px}
+.sd-k{background:#112645;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:10px;text-align:center}
+.sd-kl{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.sd-kv{font-size:18px;font-weight:800;font-family:monospace}
+.sd-sec{margin-bottom:14px}
+.sd-sec-t{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.sd-chart-w{background:#112645;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:10px;height:110px;position:relative}
+.sd-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px}
+.sd-row:last-child{border:none}
+.sd-rl{color:#6b7280}.sd-rv{color:#e2e8f0;font-family:monospace}
+.sd-footer{display:flex;gap:8px;padding:14px 18px;border-top:1px solid rgba(255,255,255,.07);flex-shrink:0}
+.sd-btn{flex:1;padding:8px;border-radius:7px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#e2e8f0;font-size:12px;font-weight:600;cursor:pointer}
+.sd-btn:hover{background:rgba(0,194,224,.1);border-color:#00c2e0;color:#00c2e0}
+.sd-btn.pr{background:#00c2e0;border-color:#00c2e0;color:#0a1628}
+.sd-btn.pr:hover{background:#00deff}
+</style>
+
+<div class="sd-overlay" id="sd-overlay" onclick="closeSensorDetail()"></div>
+<div class="sd-drawer" id="sensor-drawer">
+  <div class="sd-hdr">
+    <div onclick="closeSensorDetail()" class="sd-x">✕</div>
+    <div style="font-size:10px;color:#00c2e0;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px" id="sd-vertical">—</div>
+    <div style="font-size:16px;font-weight:700;color:#e2e8f0" id="sd-name">—</div>
+    <div style="font-size:11px;color:#6b7280;margin-top:2px" id="sd-algo">Algorithm: —</div>
+  </div>
+  <div class="sd-body">
+    <div class="sd-krow">
+      <div class="sd-k"><div class="sd-kl">Current</div><div class="sd-kv" id="sd-current" style="color:#00c2e0">—</div><div style="font-size:10px;color:#6b7280" id="sd-unit">—</div></div>
+      <div class="sd-k"><div class="sd-kl">Warning</div><div class="sd-kv" id="sd-warn" style="color:#f59e0b">—</div></div>
+      <div class="sd-k"><div class="sd-kl">Critical</div><div class="sd-kv" id="sd-crit" style="color:#ef4444">—</div></div>
+    </div>
+    <div class="sd-sec">
+      <div class="sd-sec-t">Status</div>
+      <div style="display:flex;align-items:center;gap:8px;background:#112645;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px">
+        <div id="sd-dot" style="width:10px;height:10px;border-radius:50%;background:#22c55e;flex-shrink:0"></div>
+        <div><div style="font-size:13px;font-weight:600;color:#e2e8f0" id="sd-status">OK</div>
+        <div style="font-size:11px;color:#6b7280" id="sd-status-sub">—</div></div>
+      </div>
+    </div>
+    <div class="sd-sec">
+      <div class="sd-sec-t">Live trend — last 20 readings</div>
+      <div class="sd-chart-w"><canvas id="sd-chart" style="width:100%;height:100%"></canvas></div>
+    </div>
+    <div class="sd-sec">
+      <div class="sd-sec-t">RUL prediction</div>
+      <div style="background:#112645;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="font-size:12px;color:#6b7280">Remaining Useful Life</div>
+          <div style="font-size:18px;font-weight:800;font-family:monospace;color:#22c55e" id="sd-rul">—</div>
+        </div>
+        <div style="height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden">
+          <div id="sd-rul-bar" style="height:100%;width:70%;background:#22c55e;border-radius:3px;transition:width .5s"></div>
+        </div>
+        <div style="font-size:10px;color:#6b7280;margin-top:4px" id="sd-rul-lbl">Loading...</div>
+      </div>
+    </div>
+    <div class="sd-sec">
+      <div class="sd-sec-t">Specifications</div>
+      <div class="sd-row"><span class="sd-rl">Sensor ID</span><span class="sd-rv" id="sd-spec-id">—</span></div>
+      <div class="sd-row"><span class="sd-rl">Vertical</span><span class="sd-rv" id="sd-spec-vert">—</span></div>
+      <div class="sd-row"><span class="sd-rl">Algorithm</span><span class="sd-rv" id="sd-spec-algo">—</span></div>
+      <div class="sd-row"><span class="sd-rl">Update rate</span><span class="sd-rv">2 seconds</span></div>
+      <div class="sd-row"><span class="sd-rl">Protocol</span><span class="sd-rv">OPC-UA / MQTT</span></div>
+      <div class="sd-row"><span class="sd-rl">Warn threshold</span><span class="sd-rv" id="sd-spec-warn">—</span></div>
+      <div class="sd-row"><span class="sd-rl">Crit threshold</span><span class="sd-rv" id="sd-spec-crit">—</span></div>
+    </div>
+  </div>
+  <div class="sd-footer">
+    <button class="sd-btn" onclick="closeSensorDetail();nav('pred')">Predictions</button>
+    <button class="sd-btn" onclick="raiseSensorAlert()">Raise Alert</button>
+    <button class="sd-btn pr" onclick="closeSensorDetail();nav('sensormodel')">SensorModel →</button>
+  </div>
+</div>
+
+<script>
+var _sdActive = null, _sdHist = {}, _sdTick = null;
+
+function openSensorDetail(s, v) {
+  _sdActive = s;
+  var val = (typeof v === 'number') ? v : (sVals[s.id] || s.base || 0);
+  var col = val >= s.crit ? '#ef4444' : val >= s.warn ? '#f59e0b' : '#22c55e';
+  var status = val >= s.crit ? 'CRITICAL — Immediate action required' : val >= s.warn ? 'WARNING — Monitor closely' : 'OK — Within normal range';
+  var dotCol = val >= s.crit ? '#ef4444' : val >= s.warn ? '#f59e0b' : '#22c55e';
+
+  document.getElementById('sd-vertical').textContent = s.vert || s.vertical || '—';
+  document.getElementById('sd-name').textContent = s.name;
+  document.getElementById('sd-algo').textContent = 'Algorithm: ' + (s.algo || s.mlAlgorithm || 'Ensemble');
+  document.getElementById('sd-current').textContent = val > 100 ? Math.round(val) : val.toFixed(3);
+  document.getElementById('sd-current').style.color = col;
+  document.getElementById('sd-unit').textContent = s.unit;
+  document.getElementById('sd-warn').textContent = s.warn;
+  document.getElementById('sd-crit').textContent = s.crit;
+  document.getElementById('sd-dot').style.background = dotCol;
+  document.getElementById('sd-status').textContent = status;
+  document.getElementById('sd-status-sub').textContent = val.toFixed(3) + ' ' + s.unit + ' | Updated just now';
+  document.getElementById('sd-spec-id').textContent = s.id;
+  document.getElementById('sd-spec-vert').textContent = s.vert || s.vertical || '—';
+  document.getElementById('sd-spec-algo').textContent = s.algo || s.mlAlgorithm || 'Ensemble';
+  document.getElementById('sd-spec-warn').textContent = s.warn + ' ' + s.unit;
+  document.getElementById('sd-spec-crit').textContent = s.crit + ' ' + s.unit;
+
+  if (!_sdHist[s.id]) _sdHist[s.id] = [];
+  _sdHist[s.id].push(val);
+  if (_sdHist[s.id].length > 20) _sdHist[s.id].shift();
+  drawSdChart(s);
+  loadSdRUL(s.id);
+
+  document.getElementById('sd-overlay').classList.add('open');
+  document.getElementById('sensor-drawer').classList.add('open');
+
+  clearInterval(_sdTick);
+  _sdTick = setInterval(function() {
+    if (!_sdActive) return;
+    var nv = sVals[_sdActive.id];
+    if (nv == null) return;
+    var nc = nv >= _sdActive.crit ? '#ef4444' : nv >= _sdActive.warn ? '#f59e0b' : '#22c55e';
+    document.getElementById('sd-current').textContent = nv > 100 ? Math.round(nv) : nv.toFixed(3);
+    document.getElementById('sd-current').style.color = nc;
+    document.getElementById('sd-status-sub').textContent = nv.toFixed(3) + ' ' + _sdActive.unit + ' | Updated just now';
+    if (!_sdHist[_sdActive.id]) _sdHist[_sdActive.id] = [];
+    _sdHist[_sdActive.id].push(nv);
+    if (_sdHist[_sdActive.id].length > 20) _sdHist[_sdActive.id].shift();
+    drawSdChart(_sdActive);
+  }, 2000);
+}
+
+function closeSensorDetail() {
+  document.getElementById('sd-overlay').classList.remove('open');
+  document.getElementById('sensor-drawer').classList.remove('open');
+  clearInterval(_sdTick);
+  _sdActive = null;
+}
+
+async function loadSdRUL(sensorId) {
+  try {
+    var r = await fetch('/api/v1/predictions', {credentials:'same-origin'});
+    if (!r.ok) throw new Error();
+    var d = await r.json();
+    var pred = d.data && d.data.find(function(p){ return p.sensorId === sensorId || p.sensorName === (sensorId); });
+    var rulEl = document.getElementById('sd-rul');
+    var rulBar = document.getElementById('sd-rul-bar');
+    var rulLbl = document.getElementById('sd-rul-lbl');
+    if (pred && pred.rulHours != null) {
+      var rul = Math.round(pred.rulHours);
+      var c = rul < 48 ? '#ef4444' : rul < 168 ? '#f59e0b' : '#22c55e';
+      rulEl.textContent = rul + 'h';
+      rulEl.style.color = c;
+      rulBar.style.width = Math.min(100, rul/8760*100) + '%';
+      rulBar.style.background = c;
+      rulLbl.textContent = (rul < 48 ? '⚠ Urgent PM' : rul < 168 ? 'Schedule maintenance' : 'Healthy') + ' | ' + pred.algorithm + ' | ' + (pred.confidence||0).toFixed(0) + '% confidence';
+    } else {
+      rulEl.textContent = '—';
+      rulLbl.textContent = 'No prediction — post a reading to generate one';
+    }
+  } catch(e) {
+    document.getElementById('sd-rul-lbl').textContent = 'Prediction unavailable (API)';
+  }
+}
+
+function drawSdChart(s) {
+  var c = document.getElementById('sd-chart');
+  if (!c) return;
+  var ctx = c.getContext('2d');
+  var W = c.parentElement.offsetWidth - 20 || 360;
+  var H = 90;
+  c.width = W; c.height = H;
+  ctx.clearRect(0,0,W,H);
+  var hist = _sdHist[s.id] || [];
+  if (hist.length < 2) { ctx.fillStyle='rgba(255,255,255,.1)'; ctx.fillRect(0,H/2-1,W,2); return; }
+  var mn = Math.min.apply(null,hist)*0.95;
+  var mx = Math.max(Math.max.apply(null,hist)*1.05, s.warn*1.1);
+  var rng = mx - mn || 1;
+  function px(i){ return 4 + (i/(hist.length-1))*(W-8); }
+  function py(v){ return H-4 - ((v-mn)/rng)*(H-12); }
+
+  // Zones
+  ctx.fillStyle='rgba(245,158,11,.07)'; ctx.fillRect(0,0,W,py(s.warn));
+  ctx.fillStyle='rgba(239,68,68,.1)'; ctx.fillRect(0,0,W,py(s.crit));
+  // Threshold lines
+  ctx.setLineDash([3,3]); ctx.lineWidth=1;
+  ctx.strokeStyle='rgba(245,158,11,.4)'; ctx.beginPath(); ctx.moveTo(0,py(s.warn)); ctx.lineTo(W,py(s.warn)); ctx.stroke();
+  ctx.strokeStyle='rgba(239,68,68,.4)'; ctx.beginPath(); ctx.moveTo(0,py(s.crit)); ctx.lineTo(W,py(s.crit)); ctx.stroke();
+  ctx.setLineDash([]);
+  // Area fill
+  ctx.beginPath(); ctx.moveTo(px(0),py(hist[0]));
+  for(var i=1;i<hist.length;i++) ctx.lineTo(px(i),py(hist[i]));
+  ctx.lineTo(px(hist.length-1),H); ctx.lineTo(px(0),H); ctx.closePath();
+  var last=hist[hist.length-1];
+  ctx.fillStyle=last>=s.crit?'rgba(239,68,68,.18)':last>=s.warn?'rgba(245,158,11,.14)':'rgba(0,194,224,.12)'; ctx.fill();
+  // Line
+  ctx.beginPath(); ctx.moveTo(px(0),py(hist[0]));
+  for(var j=1;j<hist.length;j++) ctx.lineTo(px(j),py(hist[j]));
+  ctx.strokeStyle=last>=s.crit?'#ef4444':last>=s.warn?'#f59e0b':'#00c2e0'; ctx.lineWidth=2; ctx.lineJoin='round'; ctx.stroke();
+  // End dot
+  ctx.beginPath(); ctx.arc(px(hist.length-1),py(last),3,0,Math.PI*2);
+  ctx.fillStyle=last>=s.crit?'#ef4444':last>=s.warn?'#f59e0b':'#00c2e0'; ctx.fill();
+}
+
+function raiseSensorAlert() {
+  if (!_sdActive) return;
+  var s = _sdActive;
+  var v = (sVals[s.id] || s.crit + 1);
+  fetch('/api/sensors/' + s.id + '/reading', {
+    method:'POST', credentials:'same-origin',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({value: v, quality: 1.0})
+  }).then(function(r){return r.json();}).then(function(d){
+    alert('Alert raised: ' + s.name + ' — ' + (d.status||'submitted'));
+    closeSensorDetail();
+    setTimeout(function(){CVX_API.fetchAlerts();}, 800);
+  }).catch(function(e){ alert('Error: ' + e.message); });
+}
+</script>
+
 </body>
-</html</tbody>>
+</html>
