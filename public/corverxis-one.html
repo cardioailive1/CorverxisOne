@@ -565,26 +565,201 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 <!-- PREDICTIVE -->
 <div class="page" id="pg-pred">
 <div class="pt">Predictive Maintenance</div>
-<div class="ps">EKF | LSTM | ARIMA | Fourier | Ensemble | ISO 13381-1 RUL | IATF 16949 Cl. 8.5.1</div>
+<div class="ps">NexGen Predict · EKF · LSTM · ARIMA · Fourier · Ensemble · ISO 13381-1 RUL · IATF 16949 Cl. 8.5.1 · 72 sensors live</div>
+
 <div class="kg">
-  <div class="kpi"><div class="kpi-l">Failures Prevented</div><div class="kpi-v" style="color:var(--green)">14</div><div class="kpi-s">This month</div></div>
-  <div class="kpi"><div class="kpi-l">Avg RUL Accuracy</div><div class="kpi-v" style="color:var(--green)">91.3%</div><div class="kpi-s">Ensemble model</div></div>
-  <div class="kpi"><div class="kpi-l">Downtime Saved</div><div class="kpi-v">127h</div><div class="kpi-s">Est. $381,000</div></div>
-  <div class="kpi"><div class="kpi-l">Open PM Orders</div><div class="kpi-v" style="color:var(--amber)">8</div><div class="kpi-s">3 urgent</div></div>
-</div>
-<div class="card">
-  <div class="ct">Remaining Useful Life - Critical Assets</div>
-  <table><tr><th>Asset</th><th>Location</th><th>Parameter</th><th>Current</th><th>Threshold</th><th>RUL</th><th>Algorithm</th><th>Action</th></tr>
-  <tbody id="pred-tbody"><tr><td>CNC Spindle 7</td><td>Line 7</td><td>Bearing Vibration</td><td style="color:var(--red)">87C</td><td>85C</td><td style="color:var(--red);font-weight:700">48h</td><td>EKF+Ensemble</td><td><span class="badge crit">URGENT PM</span></td></tr>
-  <tr><td>Press Hydraulic B</td><td>Press Shop</td><td>Seal Integrity</td><td style="color:var(--amber)">72%</td><td>60%</td><td style="color:var(--amber);font-weight:700">72h</td><td>LSTM</td><td><span class="badge warn">SCHEDULE PM</span></td></tr>
-  <tr><td>Robot J4 Gearbox</td><td>Weld Cell 3</td><td>Oil Particle Count</td><td style="color:var(--amber)">145 ppm</td><td>200 ppm</td><td style="color:var(--green);font-weight:700">312h</td><td>ARIMA</td><td><span class="badge ok">MONITOR</span></td></tr>
-  <tr><td>Turbo Test Rig</td><td>Test Cell 1</td><td>Turbine Vibration</td><td>0.42g</td><td>2.5g</td><td style="color:var(--green);font-weight:700">850h</td><td>Fourier</td><td><span class="badge ok">HEALTHY</span></td></tr>
-  <tr><td>Aerospace CNC 2</td><td>Line 5</td><td>Spindle Load</td><td>68%</td><td>90%</td><td style="color:var(--green);font-weight:700">1,200h</td><td>Ensemble</td><td><span class="badge ok">HEALTHY</span></td></tr>
-  </tbody></table>
-</div>
+  <div class="kpi"><div class="kpi-l">Failures Prevented</div><div class="kpi-v" id="pred-kv-prevented" style="color:var(--green)">—</div><div class="kpi-s">This month · from predictions</div></div>
+  <div class="kpi"><div class="kpi-l">Active Predictions</div><div class="kpi-v" id="pred-kv-active" style="color:var(--ocean)">—</div><div class="kpi-s" id="pred-kv-active-s">Loading...</div></div>
+  <div class="kpi"><div class="kpi-l">Critical (&lt;48h RUL)</div><div class="kpi-v" id="pred-kv-crit" style="color:var(--red)">—</div><div class="kpi-s">Immediate action required</div></div>
+  <div class="kpi"><div class="kpi-l">Warning (48–168h)</div><div class="kpi-v" id="pred-kv-warn" style="color:var(--amber)">—</div><div class="kpi-s">Schedule maintenance</div></div>
+  <div class="kpi"><div class="kpi-l">Avg RUL Accuracy</div><div class="kpi-v" id="pred-kv-acc" style="color:var(--green)">—</div><div class="kpi-s">Ensemble model · ±8h</div></div>
+  <div class="kpi"><div class="kpi-l">Downtime Saved</div><div class="kpi-v" id="pred-kv-saved" style="color:var(--green)">—</div><div class="kpi-s" id="pred-kv-saved-s">Est. cost saving</div></div>
 </div>
 
-<!-- QMS -->
+<!-- Sub-tabs -->
+<div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
+  <button class="scm-tab active" id="predtab-rul"      onclick="predTab('rul')">RUL Predictions</button>
+  <button class="scm-tab"        id="predtab-assets"   onclick="predTab('assets')">Asset Health</button>
+  <button class="scm-tab"        id="predtab-schedule" onclick="predTab('schedule')">PM Schedule</button>
+  <button class="scm-tab"        id="predtab-models"   onclick="predTab('models')">Model Performance</button>
+  <button class="scm-tab"        id="predtab-history"  onclick="predTab('history')">Failure History</button>
+</div>
+
+<!-- ── RUL PREDICTIONS ───────────────────────────────────────── -->
+<div class="pred-panel" id="predpanel-rul">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;gap:8px">
+      <select id="pred-filter-sev" onchange="loadPredictions()" style="padding:5px 10px;background:#112645;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text2);font-size:12px">
+        <option value="">All Severity</option>
+        <option value="critical">Critical (&lt;48h)</option>
+        <option value="warning">Warning (48–168h)</option>
+        <option value="healthy">Healthy (&gt;168h)</option>
+      </select>
+      <select id="pred-filter-algo" onchange="loadPredictions()" style="padding:5px 10px;background:#112645;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text2);font-size:12px">
+        <option value="">All Algorithms</option>
+        <option value="EKF">EKF</option>
+        <option value="LSTM">LSTM</option>
+        <option value="ARIMA">ARIMA</option>
+        <option value="Fourier">Fourier</option>
+        <option value="Ensemble">Ensemble</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="loadPredictions()" style="padding:5px 12px;background:rgba(0,194,224,.1);border:1px solid rgba(0,194,224,.3);border-radius:6px;color:#00c2e0;font-size:12px;cursor:pointer">↻ Refresh</button>
+      <button onclick="runPredAI()" style="padding:5px 12px;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.3);border-radius:6px;color:#8b5cf6;font-size:12px;cursor:pointer">NexGen Predict Analysis →</button>
+    </div>
+  </div>
+
+  <!-- Critical alert banner -->
+  <div id="pred-critical-banner" style="display:none;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:12px;margin-bottom:12px;display:flex;gap:10px;align-items:center">
+    <div style="font-size:18px">🚨</div>
+    <div id="pred-critical-text" style="font-size:12px;color:#ef4444;font-weight:600"></div>
+  </div>
+
+  <table>
+    <tr><th>Asset</th><th>Line / Location</th><th>Parameter</th><th>Current Value</th><th>Threshold</th><th>RUL</th><th>Confidence</th><th>Algorithm</th><th>Trend</th><th>Action</th></tr>
+    <tbody id="pred-tbody"><tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text3)">Loading predictions...</td></tr></tbody>
+  </table>
+</div>
+
+<!-- ── ASSET HEALTH ───────────────────────────────────────────── -->
+<div class="pred-panel" id="predpanel-assets" style="display:none">
+  <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:14px">Asset Health Dashboard — All Monitored Assets</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px" id="pred-asset-grid">
+    <div style="color:var(--text3);font-size:12px">Loading assets...</div>
+  </div>
+</div>
+
+<!-- ── PM SCHEDULE ────────────────────────────────────────────── -->
+<div class="pred-panel" id="predpanel-schedule" style="display:none">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div style="font-size:13px;font-weight:600;color:var(--text2)">Predictive Maintenance Schedule</div>
+    <button onclick="openCreatePMModal()" style="padding:5px 14px;background:#22c55e;border:none;border-radius:6px;color:#0a1628;font-size:12px;font-weight:700;cursor:pointer">+ Create PM Work Order</button>
+  </div>
+  <table>
+    <tr><th>Asset</th><th>Line</th><th>Maintenance Task</th><th>Trigger</th><th>Recommended Date</th><th>Est. Duration</th><th>Priority</th><th>Status</th></tr>
+    <tbody id="pred-schedule-tbody">
+      <div style="color:var(--text3);font-size:12px">Loading schedule...</div>
+    </tbody>
+  </table>
+  <div style="margin-top:14px;background:#0a1628;border:1px solid rgba(0,194,224,.15);border-radius:10px;padding:14px">
+    <div style="font-size:12px;font-weight:700;color:#00c2e0;margin-bottom:8px">Auto-Schedule Logic — NexGen Predict</div>
+    <div style="font-size:11px;color:#9ca3af;line-height:1.7">NexGen Predict automatically generates PM work orders when RUL drops below configurable thresholds. Maintenance windows are selected using Workday shift data to minimise production impact. Spare parts availability is checked against inventory before scheduling. Auto-emails are sent to the maintenance technician and line supervisor.</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px">
+      <div style="background:#112645;border-radius:6px;padding:8px;text-align:center"><div style="font-size:9px;color:#6b7280">CRITICAL THRESHOLD</div><div style="font-size:14px;font-weight:700;color:#ef4444">&lt; 48h RUL</div></div>
+      <div style="background:#112645;border-radius:6px;padding:8px;text-align:center"><div style="font-size:9px;color:#6b7280">WARNING THRESHOLD</div><div style="font-size:14px;font-weight:700;color:#f59e0b">&lt; 168h RUL</div></div>
+      <div style="background:#112645;border-radius:6px;padding:8px;text-align:center"><div style="font-size:9px;color:#6b7280">AUTO WO LEAD TIME</div><div style="font-size:14px;font-weight:700;color:#22c55e">24h advance</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODEL PERFORMANCE ──────────────────────────────────────── -->
+<div class="pred-panel" id="predpanel-models" style="display:none">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div>
+      <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:12px">Algorithm Performance</div>
+      <table>
+        <tr><th>Algorithm</th><th>Use Case</th><th>MAE</th><th>RMSE</th><th>Accuracy</th><th>Assets</th><th>Status</th></tr>
+        <tbody id="pred-model-tbody">
+          <tr><td style="font-weight:600;color:#00c2e0">EKF</td><td style="color:var(--text3);font-size:11px">Bearing vibration · Spindle temp</td><td style="font-family:monospace">±6.2h</td><td style="font-family:monospace">8.1h</td><td style="color:#22c55e;font-weight:700">94.7%</td><td>18</td><td><span class="badge ok">ACTIVE</span></td></tr>
+          <tr><td style="font-weight:600;color:#00c2e0">LSTM</td><td style="color:var(--text3);font-size:11px">Seal degradation · Hydraulic pressure</td><td style="font-family:monospace">±9.4h</td><td style="font-family:monospace">12.2h</td><td style="color:#22c55e;font-weight:700">91.8%</td><td>14</td><td><span class="badge ok">ACTIVE</span></td></tr>
+          <tr><td style="font-weight:600;color:#00c2e0">ARIMA</td><td style="color:var(--text3);font-size:11px">Oil particle count · Coolant quality</td><td style="font-family:monospace">±11.2h</td><td style="font-family:monospace">15.4h</td><td style="color:#f59e0b;font-weight:700">88.4%</td><td>12</td><td><span class="badge ok">ACTIVE</span></td></tr>
+          <tr><td style="font-weight:600;color:#00c2e0">Fourier</td><td style="color:var(--text3);font-size:11px">Vibration harmonics · Resonance</td><td style="font-family:monospace">±7.8h</td><td style="font-family:monospace">10.1h</td><td style="color:#22c55e;font-weight:700">93.2%</td><td>16</td><td><span class="badge ok">ACTIVE</span></td></tr>
+          <tr><td style="font-weight:600;color:#8b5cf6">Ensemble</td><td style="color:var(--text3);font-size:11px">Multi-parameter · High criticality</td><td style="font-family:monospace">±4.8h</td><td style="font-family:monospace">6.2h</td><td style="color:#22c55e;font-weight:700">96.1%</td><td>12</td><td><span class="badge ok">ACTIVE</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="ct">Live Prediction Accuracy — From DB</div>
+      <div id="pred-accuracy-live" style="display:flex;flex-direction:column;gap:8px">
+        <div style="color:var(--text3);font-size:12px">Loading live prediction data...</div>
+      </div>
+      <div style="margin-top:14px;padding:10px;background:#112645;border-radius:8px">
+        <div style="font-size:11px;font-weight:600;color:#e2e8f0;margin-bottom:6px">Model Retraining</div>
+        <div style="font-size:11px;color:#9ca3af">NexGen Predict auto-retrains weekly on new sensor data. Manual retraining available via AI Ops Center. Next scheduled retrain: <span style="color:#22c55e">Sunday 02:00</span></div>
+        <button onclick="nav('aiops');aioTab('models')" style="margin-top:8px;padding:6px 12px;background:rgba(0,194,224,.1);border:1px solid rgba(0,194,224,.3);border-radius:6px;color:#00c2e0;font-size:11px;cursor:pointer;width:100%">View Full Model Performance in AI Ops →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── FAILURE HISTORY ────────────────────────────────────────── -->
+<div class="pred-panel" id="predpanel-history" style="display:none">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div>
+      <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:12px">Failure Events — Last 12 Months</div>
+      <table>
+        <tr><th>Date</th><th>Asset</th><th>Failure Type</th><th>Downtime</th><th>Cost</th><th>Predicted?</th><th>Lead Time</th></tr>
+        <tbody id="pred-history-tbody">
+          <tr><td style="color:var(--text3);font-size:11px">2026-07-12</td><td style="color:#e2e8f0">Mazak QT-350 Spindle</td><td style="color:var(--text3);font-size:11px">Bearing failure</td><td style="color:#ef4444">4.2h</td><td style="color:#ef4444">$12,400</td><td><span class="badge ok">YES</span></td><td style="color:#22c55e">52h advance</td></tr>
+          <tr><td style="color:var(--text3);font-size:11px">2026-06-28</td><td style="color:#e2e8f0">Press Hydraulic A</td><td style="color:var(--text3);font-size:11px">Seal leak</td><td style="color:#f59e0b">1.8h</td><td style="color:#f59e0b">$4,200</td><td><span class="badge ok">YES</span></td><td style="color:#22c55e">38h advance</td></tr>
+          <tr><td style="color:var(--text3);font-size:11px">2026-06-03</td><td style="color:#e2e8f0">FANUC Robot J4</td><td style="color:var(--text3);font-size:11px">Gearbox oil degradation</td><td style="color:#22c55e">0.5h</td><td style="color:#22c55e">$1,800</td><td><span class="badge ok">YES</span></td><td style="color:#22c55e">168h advance</td></tr>
+          <tr><td style="color:var(--text3);font-size:11px">2026-05-14</td><td style="color:#e2e8f0">DMG CTX 510 Coolant</td><td style="color:var(--text3);font-size:11px">Pump cavitation</td><td style="color:#ef4444">6.1h</td><td style="color:#ef4444">$18,200</td><td><span class="badge crit">NO</span></td><td style="color:#ef4444">Unexpected</td></tr>
+          <tr><td style="color:var(--text3);font-size:11px">2026-04-22</td><td style="color:#e2e8f0">Line 3 Conveyor</td><td style="color:var(--text3);font-size:11px">Motor overload</td><td style="color:#f59e0b">2.4h</td><td style="color:#f59e0b">$6,800</td><td><span class="badge ok">YES</span></td><td style="color:#22c55e">24h advance</td></tr>
+          <tr><td style="color:var(--text3);font-size:11px">2026-03-08</td><td style="color:#e2e8f0">Hermle C 400 Spindle</td><td style="color:var(--text3);font-size:11px">Thermal drift OOT</td><td style="color:#22c55e">0.8h</td><td style="color:#22c55e">$2,100</td><td><span class="badge ok">YES</span></td><td style="color:#22c55e">72h advance</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card">
+        <div class="ct">Prediction Effectiveness — YTD</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div style="background:#112645;border-radius:7px;padding:10px;text-align:center"><div style="font-size:10px;color:#6b7280">TOTAL FAILURES</div><div style="font-size:22px;font-weight:800;color:#e2e8f0">6</div></div>
+          <div style="background:#112645;border-radius:7px;padding:10px;text-align:center"><div style="font-size:10px;color:#6b7280">PREDICTED</div><div style="font-size:22px;font-weight:800;color:#22c55e">5</div></div>
+          <div style="background:#112645;border-radius:7px;padding:10px;text-align:center"><div style="font-size:10px;color:#6b7280">DETECTION RATE</div><div style="font-size:22px;font-weight:800;color:#22c55e">83%</div></div>
+          <div style="background:#112645;border-radius:7px;padding:10px;text-align:center"><div style="font-size:10px;color:#6b7280">AVG LEAD TIME</div><div style="font-size:22px;font-weight:800;color:#22c55e">71h</div></div>
+          <div style="background:#112645;border-radius:7px;padding:10px;text-align:center;grid-column:1/-1"><div style="font-size:10px;color:#6b7280">COST SAVINGS vs REACTIVE</div><div style="font-size:22px;font-weight:800;color:#22c55e">$381,000</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ct">Failures Prevented This Month</div>
+        <div style="display:flex;flex-direction:column;gap:6px" id="pred-prevented-list">
+          <div style="padding:8px;background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2);border-radius:6px;font-size:11px"><div style="font-weight:600;color:#22c55e">Mazak QT-350 #2 — Bearing</div><div style="color:#9ca3af;margin-top:2px">EKF predicted failure 52h ahead. PM completed during night shift. Line downtime: 0h. Saved est. $14,200.</div></div>
+          <div style="padding:8px;background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2);border-radius:6px;font-size:11px"><div style="font-weight:600;color:#22c55e">DMG CTX 510 — Coolant Pump</div><div style="color:#9ca3af;margin-top:2px">LSTM detected pressure drop trend 38h ahead. Pump replaced during planned maintenance window. Saved est. $18,200.</div></div>
+          <div style="padding:8px;background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2);border-radius:6px;font-size:11px"><div style="font-weight:600;color:#22c55e">Line 6 AMR Fleet — Battery Bank</div><div style="color:#9ca3af;margin-top:2px">Ensemble model flagged 2 AMR battery cells degrading. Replaced proactively. Fleet uptime maintained at 98%.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<!-- PM Modal -->
+<div class="scm-modal" id="pred-pm-modal"><div class="scm-modal-box">
+  <div style="font-size:15px;font-weight:700;color:#e2e8f0;margin-bottom:16px">Create Predictive Maintenance Work Order</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div class="scm-field"><label>Asset / Machine *</label><input id="pm-asset" placeholder="e.g. Mazak QT-350 Spindle"></div>
+    <div class="scm-field"><label>Production Line</label><select id="pm-line-sel"><option value="">Select line...</option></select></div>
+    <div class="scm-field"><label>Maintenance Task *</label><input id="pm-task" placeholder="e.g. Bearing replacement"></div>
+    <div class="scm-field"><label>Priority</label>
+      <select id="pm-priority"><option value="1">1 — Critical (do today)</option><option value="2" selected>2 — Urgent (within 48h)</option><option value="3">3 — Schedule (within 168h)</option></select>
+    </div>
+    <div class="scm-field"><label>Scheduled Date</label><input id="pm-date" type="date"></div>
+    <div class="scm-field"><label>Est. Duration (hours)</label><input id="pm-duration" type="number" placeholder="2" step="0.5"></div>
+    <div class="scm-field"><label>Technician</label><input id="pm-tech" placeholder="Assigned technician name"></div>
+    <div class="scm-field"><label>RUL at Trigger (h)</label><input id="pm-rul" type="number" placeholder="e.g. 42"></div>
+    <div class="scm-field" style="grid-column:1/-1"><label>Spare Parts Required</label><input id="pm-parts" placeholder="e.g. SKF 6310 bearing, grease kit, seal set"></div>
+    <div class="scm-field" style="grid-column:1/-1"><label>Notes / Instructions</label><textarea id="pm-notes" rows="2" placeholder="Special instructions for technician..."></textarea></div>
+  </div>
+  <div class="scm-modal-footer">
+    <button onclick="document.getElementById('pred-pm-modal').classList.remove('open')" style="padding:8px 18px;border-radius:7px;border:1px solid rgba(255,255,255,.1);background:transparent;color:#9ca3af;cursor:pointer;font-size:13px">Cancel</button>
+    <button onclick="submitPMOrder()" style="padding:8px 18px;border-radius:7px;background:#22c55e;border:none;color:#0a1628;font-size:13px;font-weight:700;cursor:pointer">Create PM Work Order</button>
+  </div>
+</div></div>
+
+<!-- AI Analysis Modal -->
+<div class="scm-modal" id="pred-ai-modal"><div class="scm-modal-box" style="width:600px">
+  <div style="font-size:15px;font-weight:700;color:#e2e8f0;margin-bottom:4px">NexGen Predict — Fleet Analysis</div>
+  <div style="font-size:11px;color:#6b7280;margin-bottom:12px">AI-generated maintenance intelligence from live sensor data</div>
+  <div id="pred-ai-output" style="background:#0a1628;border:1px solid rgba(0,194,224,.2);border-radius:8px;padding:14px;font-size:12px;color:#e2e8f0;line-height:1.7;max-height:420px;overflow-y:auto;white-space:pre-wrap;min-height:100px">Analysing fleet health...</div>
+  <div class="scm-modal-footer">
+    <button onclick="document.getElementById('pred-ai-modal').classList.remove('open')" style="padding:8px 18px;border-radius:7px;border:1px solid rgba(255,255,255,.1);background:transparent;color:#9ca3af;cursor:pointer;font-size:13px">Close</button>
+    <button onclick="openCreatePMModal()" style="padding:8px 18px;border-radius:7px;background:#22c55e;border:none;color:#0a1628;font-size:13px;font-weight:700;cursor:pointer">Create PM Work Order</button>
+  </div>
+</div></div>
+
+<!-- QMS --><!-- QMS -->
 <!-- SENSORMODEL -->
 <div class="page" id="pg-sensormodel">
 <div class="pt">SensorModel AI — 72 Sensors · 18 Verticals · 5 ML Algorithms</div>
@@ -1116,37 +1291,227 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 <!-- COMPLIANCE <!-- COMPLIANCE <!-- COMPLIANCE -->
 <div class="page" id="pg-comp">
 <div class="pt">Compliance &amp; Audit Trail</div>
-<div class="ps">IATF 16949 | AS9100D | ISO 9001 | ISO 14001 | SAE J3061 | SOC 2 | GDPR | Full traceability</div>
+<div class="ps">IATF 16949 · AS9100D · ISO 9001 · ISO 14001 · SOC 2 · GDPR · SAE J3061 · Full digital audit trail · NADCAP</div>
+
 <div class="kg">
-  <div class="kpi"><div class="kpi-l">IATF 16949 Score</div><div class="kpi-v" style="color:var(--green)">94/100</div><div class="kpi-s">Last audit</div></div>
-  <div class="kpi"><div class="kpi-l">AS9100D Score</div><div class="kpi-v" style="color:var(--green)">97/100</div><div class="kpi-s">Aerospace cert.</div></div>
-  <div class="kpi"><div class="kpi-l">Open Major Findings</div><div class="kpi-v" style="color:var(--green)">0</div><div class="kpi-s">All closed</div></div>
-  <div class="kpi"><div class="kpi-l">Open Minor Findings</div><div class="kpi-v" style="color:var(--amber)">3</div><div class="kpi-s">Due next 30 days</div></div>
+  <div class="kpi"><div class="kpi-l">IATF 16949 Score</div><div class="kpi-v" id="comp-kv-iatf" style="color:var(--green)">94/100</div><div class="kpi-s" id="comp-kv-iatf-s">Last audit · Bureau Veritas</div></div>
+  <div class="kpi"><div class="kpi-l">AS9100D Score</div><div class="kpi-v" id="comp-kv-as9" style="color:var(--green)">97/100</div><div class="kpi-s">Aerospace certification</div></div>
+  <div class="kpi"><div class="kpi-l">Open Major Findings</div><div class="kpi-v" id="comp-kv-major" style="color:var(--green)">0</div><div class="kpi-s">All closed</div></div>
+  <div class="kpi"><div class="kpi-l">Open Minor Findings</div><div class="kpi-v" id="comp-kv-minor" style="color:var(--amber)">—</div><div class="kpi-s">Due next 30 days</div></div>
+  <div class="kpi"><div class="kpi-l">Audit Events (24h)</div><div class="kpi-v" id="comp-kv-events" style="color:var(--ocean)">—</div><div class="kpi-s">From live audit log</div></div>
+  <div class="kpi"><div class="kpi-l">Certs Expiring (90d)</div><div class="kpi-v" id="comp-kv-expiring" style="color:var(--amber)">—</div><div class="kpi-s">Require renewal action</div></div>
 </div>
-<div class="g2">
-  <div class="card">
-    <div class="ct">Certification Status</div>
-    <table><tr><th>Standard</th><th>Scope</th><th>Cert Expiry</th><th>Next Audit</th><th>Status</th></tr>
-    <tr><td>IATF 16949:2016</td><td>Automotive manufacturing</td><td>Dec 2025</td><td>Sep 2024</td><td><span class="badge ok">CERTIFIED</span></td></tr>
-    <tr><td>AS9100D</td><td>Aerospace manufacturing</td><td>Mar 2026</td><td>Oct 2024</td><td><span class="badge ok">CERTIFIED</span></td></tr>
-    <tr><td>ISO 9001:2015</td><td>Quality management</td><td>Dec 2025</td><td>Sep 2024</td><td><span class="badge ok">CERTIFIED</span></td></tr>
-    <tr><td>ISO 14001:2015</td><td>Environmental</td><td>Jun 2025</td><td>Mar 2025</td><td><span class="badge ok">CERTIFIED</span></td></tr>
-    <tr><td>SOC 2 Type II</td><td>Data security</td><td>Jul 2025</td><td>Apr 2025</td><td><span class="badge ok">CERTIFIED</span></td></tr>
-    <tr><td>SAE J3061</td><td>Cybersecurity</td><td>N/A</td><td>Ongoing</td><td><span class="badge ok">COMPLIANT</span></td></tr>
-    </table>
-  </div>
-  <div class="card">
-    <div class="ct">Audit Trail - Recent Activity</div>
-    <div class="tl">
-      <div class="ti"><div class="td" style="background:var(--green)"></div><div class="tt">NCR-0291 raised - J. Smith</div><div class="tb">Brake caliper deviation logged. SCAR-0041 issued to Bosch. Auto-timestamp + digital signature.</div><div class="tm">1h ago</div></div>
-      <div class="ti"><div class="td" style="background:var(--ocean)"></div><div class="tt">Control Plan Rev G approved</div><div class="tb">CP-48210 revised for caliper bore spec. Approved by Quality Manager + Toyota Engineering.</div><div class="tm">3h ago</div></div>
-      <div class="ti"><div class="td" style="background:var(--purple)"></div><div class="tt">PPAP submission - BT-EV220</div><div class="tb">14/18 elements submitted to Tesla portal. PSW pending dimensional sign-off.</div><div class="tm">Yesterday</div></div>
+
+<!-- Sub-tabs -->
+<div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
+  <button class="scm-tab active" id="comptab-certs"    onclick="compTab('certs')">Certifications</button>
+  <button class="scm-tab"        id="comptab-trail"    onclick="compTab('trail')">Audit Trail</button>
+  <button class="scm-tab"        id="comptab-findings" onclick="compTab('findings')">Findings &amp; Actions</button>
+  <button class="scm-tab"        id="comptab-gdpr"     onclick="compTab('gdpr')">GDPR &amp; Data</button>
+  <button class="scm-tab"        id="comptab-cyber"    onclick="compTab('cyber')">Cybersecurity</button>
+  <button class="scm-tab"        id="comptab-report"   onclick="compTab('report')">AI Compliance Report</button>
+</div>
+
+<!-- ── CERTIFICATIONS ─────────────────────────────────────────── -->
+<div class="comp-panel" id="comppanel-certs">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div>
+      <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:12px">Active Certifications</div>
+      <div style="display:flex;flex-direction:column;gap:8px" id="comp-cert-list">
+        <div style="color:var(--text3);font-size:12px">Loading certifications...</div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card">
+        <div class="ct">Certification Health Summary</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px" id="comp-cert-kpis">
+          <div style="background:#112645;border-radius:6px;padding:8px;text-align:center"><div style="font-size:9px;color:#6b7280">TOTAL CERTS</div><div style="font-size:20px;font-weight:800;color:#e2e8f0" id="comp-cert-total">—</div></div>
+          <div style="background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2);border-radius:6px;padding:8px;text-align:center"><div style="font-size:9px;color:#6b7280">CURRENT</div><div style="font-size:20px;font-weight:800;color:#22c55e" id="comp-cert-current">—</div></div>
+          <div style="background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);border-radius:6px;padding:8px;text-align:center"><div style="font-size:9px;color:#6b7280">EXPIRING SOON</div><div style="font-size:20px;font-weight:800;color:#f59e0b" id="comp-cert-soon">—</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ct">Upcoming Audit Schedule</div>
+        <div style="display:flex;flex-direction:column;gap:6px" id="comp-audit-schedule">
+          <div style="display:flex;justify-content:space-between;padding:7px 10px;background:#112645;border-radius:6px;font-size:11px"><span style="color:#9ca3af">Toyota Supplier QMS Audit</span><span style="color:#f59e0b;font-weight:600">In 3 weeks</span></div>
+          <div style="display:flex;justify-content:space-between;padding:7px 10px;background:#112645;border-radius:6px;font-size:11px"><span style="color:#9ca3af">NADCAP Welding Renewal</span><span style="color:#f59e0b;font-weight:600">In 6 weeks</span></div>
+          <div style="display:flex;justify-content:space-between;padding:7px 10px;background:#112645;border-radius:6px;font-size:11px"><span style="color:#9ca3af">ISO 14001 Environmental Audit</span><span style="color:#22c55e;font-weight:600">In 8 weeks</span></div>
+          <div style="display:flex;justify-content:space-between;padding:7px 10px;background:#112645;border-radius:6px;font-size:11px"><span style="color:#9ca3af">IATF 16949 Surveillance</span><span style="color:#22c55e;font-weight:600">Q4 2026</span></div>
+          <div style="display:flex;justify-content:space-between;padding:7px 10px;background:#112645;border-radius:6px;font-size:11px"><span style="color:#9ca3af">ISO/IEC 42001 AI Management</span><span style="color:#22c55e;font-weight:600">Q1 2027</span></div>
+          <button onclick="compTab('report')" style="margin-top:4px;padding:6px;background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.3);border-radius:6px;color:#8b5cf6;font-size:11px;cursor:pointer;width:100%">Generate Pre-Audit Checklist →</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
+
+<!-- ── AUDIT TRAIL ─────────────────────────────────────────────── -->
+<div class="comp-panel" id="comppanel-trail" style="display:none">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;gap:8px">
+      <select id="comp-trail-type" onchange="loadAuditTrail()" style="padding:5px 10px;background:#112645;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text2);font-size:12px">
+        <option value="">All Types</option>
+        <option value="ncr">NCR Events</option>
+        <option value="wo">Work Orders</option>
+        <option value="user">User Actions</option>
+        <option value="system">System Events</option>
+        <option value="quality">Quality</option>
+      </select>
+      <button onclick="loadAuditTrail()" style="padding:5px 12px;background:rgba(0,194,224,.1);border:1px solid rgba(0,194,224,.3);border-radius:6px;color:#00c2e0;font-size:12px;cursor:pointer">↻ Refresh</button>
+    </div>
+    <div style="font-size:11px;color:#6b7280">All events timestamped · digitally signed · tamper-evident · ISO 27001 compliant</div>
+  </div>
+  <table>
+    <tr><th>Timestamp</th><th>Event Type</th><th>User / System</th><th>Action</th><th>Reference</th><th>IP / Source</th><th>Outcome</th></tr>
+    <tbody id="comp-trail-tbody"><tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">Loading audit trail...</td></tr></tbody>
+  </table>
 </div>
 
-<!-- MODALS -->
+<!-- ── FINDINGS & ACTIONS ──────────────────────────────────────── -->
+<div class="comp-panel" id="comppanel-findings" style="display:none">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div style="font-size:13px;font-weight:600;color:var(--text2)">Audit Findings &amp; Corrective Actions</div>
+    <button onclick="openNewFindingModal()" style="padding:5px 14px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);border-radius:6px;color:#f59e0b;font-size:12px;font-weight:600;cursor:pointer">+ Log Finding</button>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:10px" id="comp-findings-list">
+    <div style="color:var(--text3);font-size:12px">Loading findings...</div>
+  </div>
+</div>
+
+<!-- ── GDPR & DATA ─────────────────────────────────────────────── -->
+<div class="comp-panel" id="comppanel-gdpr" style="display:none">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div class="card">
+      <div class="ct">GDPR Compliance Status</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#112645;border-radius:7px"><div><div style="font-size:12px;font-weight:600;color:#e2e8f0">Data Processing Register</div><div style="font-size:10px;color:#6b7280">Article 30 — 48 processing activities logged</div></div><span class="badge ok">COMPLIANT</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#112645;border-radius:7px"><div><div style="font-size:12px;font-weight:600;color:#e2e8f0">Data Privacy Impact Assessments</div><div style="font-size:10px;color:#6b7280">14 DPIAs completed — 0 outstanding</div></div><span class="badge ok">COMPLIANT</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#112645;border-radius:7px"><div><div style="font-size:12px;font-weight:600;color:#e2e8f0">Data Retention Policy</div><div style="font-size:10px;color:#6b7280">Rev 3 — automated deletion schedules active</div></div><span class="badge ok">COMPLIANT</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#112645;border-radius:7px"><div><div style="font-size:12px;font-weight:600;color:#e2e8f0">Consent Management</div><div style="font-size:10px;color:#6b7280">Employee data consent records — 100% coverage</div></div><span class="badge ok">COMPLIANT</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);border-radius:7px"><div><div style="font-size:12px;font-weight:600;color:#e2e8f0">Cross-Border Data Transfers</div><div style="font-size:10px;color:#6b7280">SCCs in place for SAP (DE), Salesforce (US) — annual review due</div></div><span class="badge warn">REVIEW DUE</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#112645;border-radius:7px"><div><div style="font-size:12px;font-weight:600;color:#e2e8f0">Data Subject Rights (DSARs)</div><div style="font-size:10px;color:#6b7280">4 DSARs received YTD — all responded within 30 days</div></div><span class="badge ok">COMPLIANT</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ct">Data Classification &amp; Inventory</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="padding:8px 10px;background:#112645;border-radius:6px;font-size:11px;display:flex;justify-content:space-between"><span style="color:#9ca3af">Personal data (employees)</span><span style="color:#e2e8f0">342 records · Workday + SharePoint</span></div>
+        <div style="padding:8px 10px;background:#112645;border-radius:6px;font-size:11px;display:flex;justify-content:space-between"><span style="color:#9ca3af">Customer order data</span><span style="color:#e2e8f0">Salesforce CRM · SCCs in place</span></div>
+        <div style="padding:8px 10px;background:#112645;border-radius:6px;font-size:11px;display:flex;justify-content:space-between"><span style="color:#9ca3af">Supplier contact data</span><span style="color:#e2e8f0">147 contacts · SAP supplier master</span></div>
+        <div style="padding:8px 10px;background:#112645;border-radius:6px;font-size:11px;display:flex;justify-content:space-between"><span style="color:#9ca3af">AI model training data</span><span style="color:#e2e8f0">Anonymised · DPIA completed</span></div>
+        <div style="padding:8px 10px;background:#112645;border-radius:6px;font-size:11px;display:flex;justify-content:space-between"><span style="color:#9ca3af">CCTV footage (factory)</span><span style="color:#e2e8f0">14-day retention · ISO 27701</span></div>
+        <div style="padding:8px 10px;background:#112645;border-radius:6px;font-size:11px;display:flex;justify-content:space-between"><span style="color:#9ca3af">IIoT sensor data</span><span style="color:#e2e8f0">Non-personal · Snowflake DW</span></div>
+      </div>
+      <div style="margin-top:12px;padding:10px;background:rgba(0,194,224,.06);border:1px solid rgba(0,194,224,.15);border-radius:8px;font-size:11px;color:#9ca3af">
+        <span style="color:#00c2e0;font-weight:600">DPO Contact: </span>data.privacy@corverxis.com · Report data incidents to IT Security immediately
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── CYBERSECURITY ───────────────────────────────────────────── -->
+<div class="comp-panel" id="comppanel-cyber" style="display:none">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div class="card">
+      <div class="ct">Security Posture — Live</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#112645;border-radius:7px"><div><div style="font-size:12px;font-weight:600;color:#e2e8f0">ISO 27001:2022</div><div style="font-size:10px;color:#6b7280">Information Security Management</div></div><span class="badge ok">CERTIFIED · Exp. 2027</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#112645;border-radius:7px"><div><div style="font-size:12px;font-weight:600;color:#e2e8f0">SOC 2 Type II</div><div style="font-size:10px;color:#6b7280">Security, Availability, Confidentiality</div></div><span class="badge ok">CERTIFIED · Exp. Jul 2027</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#112645;border-radius:7px"><div><div style="font-size:12px;font-weight:600;color:#e2e8f0">SAE J3061 Cybersecurity</div><div style="font-size:10px;color:#6b7280">Automotive cybersecurity process framework</div></div><span class="badge ok">COMPLIANT</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#112645;border-radius:7px"><div><div style="font-size:12px;font-weight:600;color:#e2e8f0">NIST CSF 2.0</div><div style="font-size:10px;color:#6b7280">Cybersecurity framework alignment</div></div><span class="badge ok">ALIGNED</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);border-radius:7px"><div><div style="font-size:12px;font-weight:600;color:#e2e8f0">Pen Test — Annual</div><div style="font-size:10px;color:#6b7280">Last: Q2 2026 · 2 medium findings resolved · Next: Q4 2026</div></div><span class="badge warn">Q4 DUE</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#112645;border-radius:7px"><div><div style="font-size:12px;font-weight:600;color:#e2e8f0">OT/ICS Security (IEC 62443)</div><div style="font-size:10px;color:#6b7280">PLC network segmented · OPC-UA encrypted</div></div><span class="badge ok">COMPLIANT</span></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card">
+        <div class="ct">Security Metrics — Live</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="comp-cyber-metrics">
+          <div style="background:#112645;border-radius:6px;padding:8px;text-align:center"><div style="font-size:9px;color:#6b7280">FAILED LOGINS (24H)</div><div style="font-size:20px;font-weight:800;color:#f59e0b">—</div></div>
+          <div style="background:#112645;border-radius:6px;padding:8px;text-align:center"><div style="font-size:9px;color:#6b7280">API CALLS (24H)</div><div style="font-size:20px;font-weight:800;color:#e2e8f0">—</div></div>
+          <div style="background:#112645;border-radius:6px;padding:8px;text-align:center"><div style="font-size:9px;color:#6b7280">ACTIVE SESSIONS</div><div style="font-size:20px;font-weight:800;color:#22c55e">—</div></div>
+          <div style="background:#112645;border-radius:6px;padding:8px;text-align:center"><div style="font-size:9px;color:#6b7280">SECURITY EVENTS</div><div style="font-size:20px;font-weight:800;color:#22c55e">0</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ct">Access Control Summary</div>
+        <div style="display:flex;flex-direction:column;gap:5px;font-size:11px">
+          <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)"><span style="color:#9ca3af">Super Admins</span><span style="color:#ef4444;font-weight:600" id="comp-role-super">—</span></div>
+          <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)"><span style="color:#9ca3af">Admins</span><span style="color:#f59e0b;font-weight:600" id="comp-role-admin">—</span></div>
+          <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)"><span style="color:#9ca3af">Managers</span><span style="color:#e2e8f0;font-weight:600" id="comp-role-mgr">—</span></div>
+          <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)"><span style="color:#9ca3af">Engineers / Technicians</span><span style="color:#e2e8f0;font-weight:600" id="comp-role-eng">—</span></div>
+          <div style="display:flex;justify-content:space-between;padding:5px 0"><span style="color:#9ca3af">Pending Approval</span><span style="color:#f59e0b;font-weight:600" id="comp-role-pending">—</span></div>
+        </div>
+        <button onclick="nav('aiops')" style="margin-top:8px;padding:6px;background:rgba(0,194,224,.1);border:1px solid rgba(0,194,224,.3);border-radius:6px;color:#00c2e0;font-size:11px;cursor:pointer;width:100%">Manage Roles in Admin Panel →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── AI COMPLIANCE REPORT ────────────────────────────────────── -->
+<div class="comp-panel" id="comppanel-report" style="display:none">
+  <div style="display:grid;grid-template-columns:1fr 2fr;gap:14px">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:12px;font-weight:600;color:var(--text2)">Generate Compliance Report</div>
+      <div class="scm-field"><label>Report Type</label>
+        <select id="comp-report-type" style="padding:7px;background:#112645;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#e2e8f0;font-size:12px;width:100%">
+          <option value="full">Full Compliance Summary</option>
+          <option value="iatf">IATF 16949 Clause-by-Clause</option>
+          <option value="as9100">AS9100D Gap Analysis</option>
+          <option value="audit-prep">Pre-Audit Readiness Checklist</option>
+          <option value="gdpr">GDPR Data Compliance Report</option>
+          <option value="cyber">Cybersecurity Posture Report</option>
+          <option value="supplier">Supplier Quality Compliance</option>
+        </select>
+      </div>
+      <div class="scm-field"><label>Standard / Audit</label>
+        <select id="comp-report-std" style="padding:7px;background:#112645;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#e2e8f0;font-size:12px;width:100%">
+          <option value="IATF 16949">IATF 16949:2016</option>
+          <option value="AS9100D">AS9100D Rev D</option>
+          <option value="ISO 9001">ISO 9001:2015</option>
+          <option value="ISO 14001">ISO 14001:2015</option>
+          <option value="GDPR">GDPR / UK GDPR</option>
+          <option value="SOC 2">SOC 2 Type II</option>
+          <option value="Toyota">Toyota Supplier Audit</option>
+        </select>
+      </div>
+      <div style="font-size:11px;font-weight:600;color:var(--text2);margin-top:4px">Quick Presets</div>
+      <button onclick="setCompReportPreset('iatf','IATF 16949')" class="console-preset">IATF 16949 Clause Review</button>
+      <button onclick="setCompReportPreset('audit-prep','Toyota')" class="console-preset">Toyota Pre-Audit Checklist</button>
+      <button onclick="setCompReportPreset('as9100','AS9100D')" class="console-preset">AS9100D Gap Analysis</button>
+      <button onclick="setCompReportPreset('gdpr','GDPR')" class="console-preset">GDPR Compliance Review</button>
+      <button onclick="setCompReportPreset('supplier','IATF 16949')" class="console-preset">Supplier Quality Compliance</button>
+      <button onclick="generateCompReport()" id="comp-report-btn" style="padding:9px;background:#8b5cf6;border:none;border-radius:7px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;margin-top:4px">Generate with NexGen Ultra →</button>
+    </div>
+    <div style="background:#0a1628;border:1px solid rgba(139,92,246,.2);border-radius:8px;padding:14px;font-size:12px;color:#e2e8f0;line-height:1.7;overflow-y:auto;white-space:pre-wrap;min-height:400px" id="comp-report-output">
+      <span style="color:#374151">Select a report type and click Generate. NexGen Ultra will produce a structured compliance report drawing from live NCR data, audit logs, certification status, FMEA findings, and supplier quality records — ready to share with auditors or management.</span>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<!-- Finding Modal -->
+<div class="scm-modal" id="comp-finding-modal"><div class="scm-modal-box">
+  <div style="font-size:15px;font-weight:700;color:#e2e8f0;margin-bottom:16px">Log Audit Finding</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div class="scm-field"><label>Standard / Clause *</label><input id="find-std" placeholder="e.g. IATF 16949 Cl. 8.5.1"></div>
+    <div class="scm-field"><label>Finding Type</label>
+      <select id="find-type"><option value="MAJOR">Major Non-Conformance</option><option value="MINOR" selected>Minor Non-Conformance</option><option value="OFI">Opportunity for Improvement</option><option value="POSITIVE">Positive Finding</option></select>
+    </div>
+    <div class="scm-field" style="grid-column:1/-1"><label>Finding Description *</label><textarea id="find-desc" rows="2" placeholder="Describe the finding..."></textarea></div>
+    <div class="scm-field"><label>Auditor</label><input id="find-auditor" placeholder="Auditor name / body"></div>
+    <div class="scm-field"><label>Due Date for Closure</label><input id="find-due" type="date"></div>
+    <div class="scm-field"><label>Owner</label><input id="find-owner" placeholder="Responsible person / team"></div>
+    <div class="scm-field"><label>Proposed Corrective Action</label><input id="find-action" placeholder="Immediate corrective action..."></div>
+  </div>
+  <div class="scm-modal-footer">
+    <button onclick="document.getElementById('comp-finding-modal').classList.remove('open')" style="padding:8px 18px;border-radius:7px;border:1px solid rgba(255,255,255,.1);background:transparent;color:#9ca3af;cursor:pointer;font-size:13px">Cancel</button>
+    <button onclick="submitFinding()" style="padding:8px 18px;border-radius:7px;background:#f59e0b;border:none;color:#0a1628;font-size:13px;font-weight:700;cursor:pointer">Log Finding</button>
+  </div>
+</div></div>
+
+<!-- MODALS (legacy) -->
 <div class="mo" id="wo-mo">
   <div class="md">
     <div class="mt">Create Work Order</div>
@@ -1168,188 +1533,6 @@ tr:hover td{background:rgba(255,255,255,0.02);}
   </div>
 </div>
 <div id="toastEl" style="display:none;position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#0d1f3c;border:1px solid #00c2e0;border-radius:8px;padding:11px 22px;font-size:13px;color:#e2e8f0;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,0.4);"></div>
-
-<script>
-function nav(id) {
-  document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
-  document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
-  var pg = document.getElementById('pg-' + id);
-  var ni = document.getElementById('ni-' + id);
-  if (pg) pg.classList.add('active');
-  if (ni) ni.classList.add('active');
-  // Lazy-load iframes on first visit
-  if (id === 'sensormodel') { loadSensorModelFrame(); }
-  if (id === 'vision')      { loadVisionFrame(); }
-}
-function showMo(id){ document.getElementById(id).classList.add('open'); }
-function hideMo(id){ document.getElementById(id).classList.remove('open'); }
-document.querySelectorAll('.mo').forEach(function(el){
-  el.addEventListener('click', function(e){ if(e.target===el) el.classList.remove('open'); });
-});
-function toast(msg){
-  var t=document.getElementById('toastEl');
-  t.textContent='  '+msg;
-  t.style.display='block';
-  setTimeout(function(){ t.style.display='none'; }, 3200);
-}
-
-var SENSORS = [
-  {id:'mfg_vib',   name:'CNC Spindle Vibration',   vert:'Manufacturing',     unit:'mm/s',  base:1.2,  warn:4.2,  crit:8.5,  col:'#00c2e0'},
-  {id:'mfg_temp',  name:'Spindle Bearing Temp',     vert:'Manufacturing',     unit:'C',     base:42,   warn:65,   crit:85,   col:'#f59e0b'},
-  {id:'mfg_curr',  name:'Motor Drive Current',      vert:'Manufacturing',     unit:'A',     base:18,   warn:28,   crit:38,   col:'#22c55e'},
-  {id:'mfg_press', name:'Hydraulic Pressure',       vert:'Manufacturing',     unit:'bar',   base:120,  warn:145,  crit:160,  col:'#8b5cf6'},
-  {id:'aero_vib',  name:'Engine Fan Vibration',     vert:'Aerospace',         unit:'g RMS', base:0.8,  warn:2.5,  crit:5.0,  col:'#00c2e0'},
-  {id:'aero_temp', name:'EGT Exhaust Gas Temp',     vert:'Aerospace',         unit:'C',     base:620,  warn:720,  crit:800,  col:'#ef4444'},
-  {id:'aero_oil',  name:'Engine Oil Pressure',      vert:'Aerospace',         unit:'psi',   base:65,   warn:45,   crit:35,   col:'#f59e0b'},
-  {id:'aero_hyd',  name:'Hydraulic System Press.',  vert:'Aerospace',         unit:'psi',   base:3000, warn:3200, crit:3400, col:'#8b5cf6'},
-  {id:'ev_temp',   name:'Battery Cell Temp',        vert:'EV Battery',        unit:'C',     base:28,   warn:45,   crit:60,   col:'#ef4444'},
-  {id:'ev_volt',   name:'Cell Voltage',             vert:'EV Battery',        unit:'V',     base:3.7,  warn:4.18, crit:4.25, col:'#00c2e0'},
-  {id:'ev_curr',   name:'Pack Charge Current',      vert:'EV Battery',        unit:'A',     base:45,   warn:120,  crit:180,  col:'#22c55e'},
-  {id:'ev_soc',    name:'State of Charge',          vert:'EV Battery',        unit:'%',     base:75,   warn:15,   crit:8,    col:'#8b5cf6'},
-  {id:'min_vib',   name:'Crusher Bearing Vib.',     vert:'Mining',            unit:'mm/s',  base:2.8,  warn:8.5,  crit:18,   col:'#00c2e0'},
-  {id:'min_gas',   name:'Methane Concentration',    vert:'Mining',            unit:'% LEL', base:2,    warn:20,   crit:40,   col:'#f59e0b'},
-  {id:'min_dust',  name:'Respirable Dust PM2.5',    vert:'Mining',            unit:'mg/m3', base:0.8,  warn:2.0,  crit:3.5,  col:'#ef4444'},
-  {id:'min_str',   name:'Roof Support Load',        vert:'Mining',            unit:'t',     base:45,   warn:72,   crit:90,   col:'#22c55e'},
-  {id:'pwr_curr',  name:'Transformer Current',      vert:'Power Systems',     unit:'A',     base:420,  warn:520,  crit:600,  col:'#00c2e0'},
-  {id:'pwr_temp',  name:'Transformer Oil Temp',     vert:'Power Systems',     unit:'C',     base:55,   warn:80,   crit:95,   col:'#f59e0b'},
-  {id:'pwr_pdis',  name:'Partial Discharge',        vert:'Power Systems',     unit:'pC',    base:15,   warn:100,  crit:500,  col:'#ef4444'},
-  {id:'pwr_freq',  name:'Grid Frequency',           vert:'Power Systems',     unit:'Hz',    base:50,   warn:49.8, crit:49.5, col:'#22c55e'},
-  {id:'hth_ecg',   name:'ECG Heart Rate',           vert:'Healthcare',        unit:'bpm',   base:72,   warn:100,  crit:130,  col:'#ef4444'},
-  {id:'hth_spo2',  name:'SpO2 Saturation',          vert:'Healthcare',        unit:'%',     base:98,   warn:94,   crit:90,   col:'#00c2e0'},
-  {id:'re_vib',    name:'Gearbox Vibration',        vert:'Renewable Energy',  unit:'mm/s',  base:3.5,  warn:9.0,  crit:18,   col:'#00c2e0'},
-  {id:'re_power',  name:'Wind Active Power',        vert:'Renewable Energy',  unit:'kW',    base:1850, warn:600,  crit:200,  col:'#22c55e'},
-];
-
-var sVals = {};
-SENSORS.forEach(function(s){ sVals[s.id] = s.base; });
-
-// Sensor lookup map — index by id for safe onclick
-var _sensorMap = {};
-SENSORS.forEach(function(s){ _sensorMap[s.id] = s; });
-
-function renderSensors() {
-  var g = document.getElementById('sensor-grid');
-  if (!g) return;
-  // Use event delegation — attach ONE listener to the grid
-  if (!g._delegated) {
-    g.addEventListener('click', function(e) {
-      var card = e.target.closest('[data-sid]');
-      if (!card) return;
-      var sid = card.getAttribute('data-sid');
-      var s   = _sensorMap[sid];
-      var v   = sVals[sid] || 0;
-      if (s) openSensorDetail(s, v);
-    });
-    g._delegated = true;
-  }
-  g.innerHTML = SENSORS.map(function(s) {
-    var v = sVals[s.id] || 0;
-    var isCrit = v >= s.crit;
-    var isWarn = !isCrit && v >= s.warn;
-    var status = isCrit ? 'CRITICAL' : isWarn ? 'WARNING' : 'OK';
-    var sc = isCrit ? '#ef4444' : isWarn ? '#f59e0b' : '#22c55e';
-    var bc = isCrit ? 'rgba(239,68,68,0.25)' : isWarn ? 'rgba(245,158,11,0.15)' : 'var(--border)';
-    var valStr = v > 100 ? Math.round(v).toString() : v.toFixed(s.id==='ev_volt'?3:1);
-    var bclass = isCrit ? 'crit' : isWarn ? 'warn' : 'ok';
-        return '<div class="sc sc-hover" data-sid="' + s.id + '" style="border-color:' + bc + ';cursor:pointer">' +
-      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px;">' +
-        '<div><div style="font-size:12px;font-weight:600;color:#e2e8f0">' + s.name + '</div>' +
-        '<div style="font-size:11px;color:#6b7280">' + s.vert + '</div></div>' +
-        '<span class="badge ' + bclass + '">' + status + '</span>' +
-      '</div>' +
-      '<div style="font-size:24px;font-weight:800;color:' + s.col + ';line-height:1">' + valStr +
-        '<span style="font-size:12px;color:#6b7280;font-weight:400;margin-left:3px">' + s.unit + '</span></div>' +
-      '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#6b7280">' +
-        '<span>Warn: ' + s.warn + ' ' + s.unit + '</span>' +
-        '<span style="color:' + sc + ';font-weight:700">' + (isCrit?'CRIT':isWarn?'WARN':'OK') + '</span>' +
-      '</div>' +
-      '<div style="margin-top:5px;font-size:10px;color:#4b5563;display:flex;align-items:center;gap:4px">' +
-        '<span style="width:6px;height:6px;border-radius:50%;background:' + sc + ';display:inline-block;animation:pulse 2s infinite"></span>' +
-        'Live · Click for detail →' +
-      '</div>' +
-    '</div>';
-  }).join('');
-}
-
-// ── API-driven live sensor updates ──────────────────────────
-async function fetchSensorsLive() {
-  try {
-    var r = await fetch('/api/v1/sensors/live', {credentials:'same-origin'});
-    if (!r.ok) throw new Error(r.status);
-    var d = await r.json();
-    d.data.forEach(function(s) {
-      sVals[s.type] = s.value;
-      sVals[s.id]   = s.value;
-    });
-    renderSensors();
-  } catch(e) {
-    // Simulation fallback — only runs if /api/v1/sensors/live is unreachable
-    SENSORS.forEach(function(s){
-      var n = (Math.random()-0.5)*s.base*0.07;
-      var dv = Math.sin(Date.now()/28000)*s.base*0.04;
-      sVals[s.id] = Math.max(0, s.base + n + dv);
-    });
-    sVals['mfg_temp'] = 83 + Math.random()*5;
-    renderSensors();
-  }
-}
-setInterval(fetchSensorsLive, 2000);
-fetchSensorsLive();;
-renderSensors();
-
-var AIDATA = {
-  'wo': 'WO-2851 - Brake Caliper Assembly (P/N 48210-06290) for Toyota:\n\nStatus: ON TRACK - 82% complete (984 of 1,200 units)\nLine: 2 - running at 88% efficiency\nDue: Today 18:00 - projected to complete by 17:45\nQuality: First pass yield 98.8% - 12 units reworked\nToyota contact: Kenji Yamamoto, SQE - k.yamamoto@toyota.com\n\nNo issues detected. On-time delivery confirmed.',
-  'sensor': 'Current IIoT Critical Alerts:\n\nCRITICAL - Spindle Bearing Temp (CNC Line 7)\nCurrent: 87C | Threshold: 85C | Trend: +0.4C per hour\nRUL Estimate: 48 hours (EKF + Ensemble model)\nAction: Maintenance work order WO-M-441 auto-raised\nTechnician: Mike Johnson - on shift - qualified\n\nWARNING - Methane Concentration (Mining Level 3)\nCurrent: 22% LEL | Alert at: 20% LEL\nTrend: Stable - ventilation increased 15 min ago\n\nRecommendation: Prioritise Line 7 bearing replacement within 24h. Downtime cost if failed: est. $180,000.',
-  'abs': 'ABS Sensor (P/N ABS-881) Supply Check for Ford:\n\nCurrent Stock: 4,200 units\nSafety Stock Level: 5,000 units - BELOW SAFETY STOCK\nFord Demand next 2 weeks: WO-2847 (2,400) + WO-2855 (2,800) = 5,200 units\nStock Shortfall: -1,000 units\n\nSupplier Bosch OTIF: 88% - declining trend\nPO-8819: 4,000 units due in 6 days - AT RISK\nAI has raised expedite request: PO-EXP-0041\n\nRecommendation: Approve Continental alternative source today. Premium: $12,400. Avoids $340,000 risk.',
-  'sop': 'Line 4 Machine Malfunction SOP - Retrieved from SharePoint DMS:\n\nDocument: SOP-MNT-004 Rev C\n\nImmediate Actions (first 5 minutes):\n1. Press red E-STOP on affected machine - isolate power\n2. Notify shift supervisor via PA announcement\n3. Quarantine all product from last 30 minutes - HOLD tags\n4. Call Maintenance on ext. 4441 or radio Channel 3\n\nEscalation (5-30 minutes):\n5. Log incident in MES with fault code\n6. Quality perform containment inspection\n7. If over 30 min downtime - notify Production Manager\n\nReturn to Production:\n8. Maintenance signs off work order\n9. Run 10 parts - 100% inspection before releasing line\n10. Log corrective action in QMS - update PFMEA if systemic\n\nSource: SOP-MNT-004 Rev C | Owner: Plant Engineering',
-  'ncr': 'Open NCRs - Toyota Account:\n\nNCR-0291 - CRITICAL (Open 5 days)\nPart: Brake Caliper 48210-06290\nDefect: OD +0.12mm over tolerance\n8D Status: D3 complete - containment active - 100% sort in progress\nSCAR-0041 issued to Bosch\nD5 Root Cause due in 3 days\n\nNCR-0288 - CLOSED 8 days ago\nPart: Engine Mount EM-4471\nDefect: Surface cosmetic - disposition: use-as-is with Toyota concession\n8D complete - PFMEA and Control Plan updated to Rev G\n\nCustomer Score: 4.2 out of 5 | Preferred supplier status maintained.',
-  'risk': 'Highest Supply Chain Risk - Next 7 Days:\n\n1st RISK: Bosch GmbH (ABS Sensors)\nOTIF: 88% - declining trend\nPO-8819: 4,000 units due Thursday - AT RISK\nImpact: WO-2847 and WO-2855 at risk - $340,000 revenue exposure\nAction: SCAR-0041 escalated. Recommend dual-source from Continental.\n\n2nd RISK: Parker Hannifin (Hydraulic Seals)\nSCAR-0040 overdue by 2 days - no 8D response\nSafety stock adequate for 12 days - not immediately critical\n\nAI Recommendation: Approve Continental alternative PO today. Net premium cost: $12,400. Risk mitigation value: $340,000 plus.'
-};
-
-function getAIResp(q) {
-  var l = q.toLowerCase();
-  if (l.indexOf('2851')>=0 || (l.indexOf('toyota')>=0 && l.indexOf('contact')>=0)) return AIDATA['wo'];
-  if (l.indexOf('sensor')>=0 || l.indexOf('rul')>=0 || l.indexOf('alert')>=0) return AIDATA['sensor'];
-  if (l.indexOf('abs')>=0 || l.indexOf('stock')>=0 || l.indexOf('ford')>=0) return AIDATA['abs'];
-  if (l.indexOf('sop')>=0 || l.indexOf('malfunction')>=0 || l.indexOf('procedure')>=0) return AIDATA['sop'];
-  if (l.indexOf('ncr')>=0 || l.indexOf('8d')>=0) return AIDATA['ncr'];
-  if (l.indexOf('supplier')>=0 || l.indexOf('risk')>=0 || l.indexOf('stoppage')>=0) return AIDATA['risk'];
-  return 'I have analysed your query across all connected enterprise systems.\n\nCurrent system state:\nMES: 847 active work orders - 96% on schedule\nQMS: 7 open NCRs - 2 critical requiring action\nSupply Chain: 7 at-risk deliveries in next 14 days\nIIoT: 5 active sensor alerts - 1 critical on Line 7\n\nFor specific information, ask about a work order number, supplier name, part number, sensor alert, or quality issue.';
-}
-
-function addMsg(text, isUser) {
-  var msgs = document.getElementById('ai-messages');
-  var d = document.createElement('div');
-  d.className = 'msg ' + (isUser ? 'user' : 'bot');
-  d.innerHTML = text.replace(/\n/g, '<br>');
-  if (!isUser) {
-    var src = document.createElement('div');
-    src.className = 'src';
-    src.textContent = 'Sources: MES | QMS | Supply Chain | IIoT | SensorModel | Document DMS';
-    d.appendChild(src);
-  }
-  msgs.appendChild(d);
-  msgs.scrollTop = msgs.scrollHeight;
-}
-
-function askAI(q) {
-  nav('ai');
-  setTimeout(function(){
-    addMsg(q, true);
-    setTimeout(function(){ addMsg(getAIResp(q), false); }, 700);
-  }, 100);
-}
-
-function sendAI() {
-  var inp = document.getElementById('ai-inp');
-  var q = inp.value.trim();
-  if (!q) return;
-  inp.value = '';
-  addMsg(q, true);
-  setTimeout(function(){ addMsg(getAIResp(q), false); }, 700);
-}
-</script>
-
 <!-- AI OPS CENTER -->
 <div class="page" id="pg-aiops">
 <div class="pt">AI Operations Center</div>
@@ -4394,26 +4577,201 @@ function renderSCARs() {
 <!-- PREDICTIVE -->
 <div class="page" id="pg-pred">
 <div class="pt">Predictive Maintenance</div>
-<div class="ps">EKF | LSTM | ARIMA | Fourier | Ensemble | ISO 13381-1 RUL | IATF 16949 Cl. 8.5.1</div>
+<div class="ps">NexGen Predict · EKF · LSTM · ARIMA · Fourier · Ensemble · ISO 13381-1 RUL · IATF 16949 Cl. 8.5.1 · 72 sensors live</div>
+
 <div class="kg">
-  <div class="kpi"><div class="kpi-l">Failures Prevented</div><div class="kpi-v" style="color:var(--green)">14</div><div class="kpi-s">This month</div></div>
-  <div class="kpi"><div class="kpi-l">Avg RUL Accuracy</div><div class="kpi-v" style="color:var(--green)">91.3%</div><div class="kpi-s">Ensemble model</div></div>
-  <div class="kpi"><div class="kpi-l">Downtime Saved</div><div class="kpi-v">127h</div><div class="kpi-s">Est. $381,000</div></div>
-  <div class="kpi"><div class="kpi-l">Open PM Orders</div><div class="kpi-v" style="color:var(--amber)">8</div><div class="kpi-s">3 urgent</div></div>
-</div>
-<div class="card">
-  <div class="ct">Remaining Useful Life - Critical Assets</div>
-  <table><tr><th>Asset</th><th>Location</th><th>Parameter</th><th>Current</th><th>Threshold</th><th>RUL</th><th>Algorithm</th><th>Action</th></tr>
-  <tbody id="pred-tbody"><tr><td>CNC Spindle 7</td><td>Line 7</td><td>Bearing Vibration</td><td style="color:var(--red)">87C</td><td>85C</td><td style="color:var(--red);font-weight:700">48h</td><td>EKF+Ensemble</td><td><span class="badge crit">URGENT PM</span></td></tr>
-  <tr><td>Press Hydraulic B</td><td>Press Shop</td><td>Seal Integrity</td><td style="color:var(--amber)">72%</td><td>60%</td><td style="color:var(--amber);font-weight:700">72h</td><td>LSTM</td><td><span class="badge warn">SCHEDULE PM</span></td></tr>
-  <tr><td>Robot J4 Gearbox</td><td>Weld Cell 3</td><td>Oil Particle Count</td><td style="color:var(--amber)">145 ppm</td><td>200 ppm</td><td style="color:var(--green);font-weight:700">312h</td><td>ARIMA</td><td><span class="badge ok">MONITOR</span></td></tr>
-  <tr><td>Turbo Test Rig</td><td>Test Cell 1</td><td>Turbine Vibration</td><td>0.42g</td><td>2.5g</td><td style="color:var(--green);font-weight:700">850h</td><td>Fourier</td><td><span class="badge ok">HEALTHY</span></td></tr>
-  <tr><td>Aerospace CNC 2</td><td>Line 5</td><td>Spindle Load</td><td>68%</td><td>90%</td><td style="color:var(--green);font-weight:700">1,200h</td><td>Ensemble</td><td><span class="badge ok">HEALTHY</span></td></tr>
-  </tbody></table>
-</div>
+  <div class="kpi"><div class="kpi-l">Failures Prevented</div><div class="kpi-v" id="pred-kv-prevented" style="color:var(--green)">—</div><div class="kpi-s">This month · from predictions</div></div>
+  <div class="kpi"><div class="kpi-l">Active Predictions</div><div class="kpi-v" id="pred-kv-active" style="color:var(--ocean)">—</div><div class="kpi-s" id="pred-kv-active-s">Loading...</div></div>
+  <div class="kpi"><div class="kpi-l">Critical (&lt;48h RUL)</div><div class="kpi-v" id="pred-kv-crit" style="color:var(--red)">—</div><div class="kpi-s">Immediate action required</div></div>
+  <div class="kpi"><div class="kpi-l">Warning (48–168h)</div><div class="kpi-v" id="pred-kv-warn" style="color:var(--amber)">—</div><div class="kpi-s">Schedule maintenance</div></div>
+  <div class="kpi"><div class="kpi-l">Avg RUL Accuracy</div><div class="kpi-v" id="pred-kv-acc" style="color:var(--green)">—</div><div class="kpi-s">Ensemble model · ±8h</div></div>
+  <div class="kpi"><div class="kpi-l">Downtime Saved</div><div class="kpi-v" id="pred-kv-saved" style="color:var(--green)">—</div><div class="kpi-s" id="pred-kv-saved-s">Est. cost saving</div></div>
 </div>
 
-<!-- QMS -->
+<!-- Sub-tabs -->
+<div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
+  <button class="scm-tab active" id="predtab-rul"      onclick="predTab('rul')">RUL Predictions</button>
+  <button class="scm-tab"        id="predtab-assets"   onclick="predTab('assets')">Asset Health</button>
+  <button class="scm-tab"        id="predtab-schedule" onclick="predTab('schedule')">PM Schedule</button>
+  <button class="scm-tab"        id="predtab-models"   onclick="predTab('models')">Model Performance</button>
+  <button class="scm-tab"        id="predtab-history"  onclick="predTab('history')">Failure History</button>
+</div>
+
+<!-- ── RUL PREDICTIONS ───────────────────────────────────────── -->
+<div class="pred-panel" id="predpanel-rul">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;gap:8px">
+      <select id="pred-filter-sev" onchange="loadPredictions()" style="padding:5px 10px;background:#112645;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text2);font-size:12px">
+        <option value="">All Severity</option>
+        <option value="critical">Critical (&lt;48h)</option>
+        <option value="warning">Warning (48–168h)</option>
+        <option value="healthy">Healthy (&gt;168h)</option>
+      </select>
+      <select id="pred-filter-algo" onchange="loadPredictions()" style="padding:5px 10px;background:#112645;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text2);font-size:12px">
+        <option value="">All Algorithms</option>
+        <option value="EKF">EKF</option>
+        <option value="LSTM">LSTM</option>
+        <option value="ARIMA">ARIMA</option>
+        <option value="Fourier">Fourier</option>
+        <option value="Ensemble">Ensemble</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="loadPredictions()" style="padding:5px 12px;background:rgba(0,194,224,.1);border:1px solid rgba(0,194,224,.3);border-radius:6px;color:#00c2e0;font-size:12px;cursor:pointer">↻ Refresh</button>
+      <button onclick="runPredAI()" style="padding:5px 12px;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.3);border-radius:6px;color:#8b5cf6;font-size:12px;cursor:pointer">NexGen Predict Analysis →</button>
+    </div>
+  </div>
+
+  <!-- Critical alert banner -->
+  <div id="pred-critical-banner" style="display:none;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:12px;margin-bottom:12px;display:flex;gap:10px;align-items:center">
+    <div style="font-size:18px">🚨</div>
+    <div id="pred-critical-text" style="font-size:12px;color:#ef4444;font-weight:600"></div>
+  </div>
+
+  <table>
+    <tr><th>Asset</th><th>Line / Location</th><th>Parameter</th><th>Current Value</th><th>Threshold</th><th>RUL</th><th>Confidence</th><th>Algorithm</th><th>Trend</th><th>Action</th></tr>
+    <tbody id="pred-tbody"><tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text3)">Loading predictions...</td></tr></tbody>
+  </table>
+</div>
+
+<!-- ── ASSET HEALTH ───────────────────────────────────────────── -->
+<div class="pred-panel" id="predpanel-assets" style="display:none">
+  <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:14px">Asset Health Dashboard — All Monitored Assets</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px" id="pred-asset-grid">
+    <div style="color:var(--text3);font-size:12px">Loading assets...</div>
+  </div>
+</div>
+
+<!-- ── PM SCHEDULE ────────────────────────────────────────────── -->
+<div class="pred-panel" id="predpanel-schedule" style="display:none">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div style="font-size:13px;font-weight:600;color:var(--text2)">Predictive Maintenance Schedule</div>
+    <button onclick="openCreatePMModal()" style="padding:5px 14px;background:#22c55e;border:none;border-radius:6px;color:#0a1628;font-size:12px;font-weight:700;cursor:pointer">+ Create PM Work Order</button>
+  </div>
+  <table>
+    <tr><th>Asset</th><th>Line</th><th>Maintenance Task</th><th>Trigger</th><th>Recommended Date</th><th>Est. Duration</th><th>Priority</th><th>Status</th></tr>
+    <tbody id="pred-schedule-tbody">
+      <div style="color:var(--text3);font-size:12px">Loading schedule...</div>
+    </tbody>
+  </table>
+  <div style="margin-top:14px;background:#0a1628;border:1px solid rgba(0,194,224,.15);border-radius:10px;padding:14px">
+    <div style="font-size:12px;font-weight:700;color:#00c2e0;margin-bottom:8px">Auto-Schedule Logic — NexGen Predict</div>
+    <div style="font-size:11px;color:#9ca3af;line-height:1.7">NexGen Predict automatically generates PM work orders when RUL drops below configurable thresholds. Maintenance windows are selected using Workday shift data to minimise production impact. Spare parts availability is checked against inventory before scheduling. Auto-emails are sent to the maintenance technician and line supervisor.</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px">
+      <div style="background:#112645;border-radius:6px;padding:8px;text-align:center"><div style="font-size:9px;color:#6b7280">CRITICAL THRESHOLD</div><div style="font-size:14px;font-weight:700;color:#ef4444">&lt; 48h RUL</div></div>
+      <div style="background:#112645;border-radius:6px;padding:8px;text-align:center"><div style="font-size:9px;color:#6b7280">WARNING THRESHOLD</div><div style="font-size:14px;font-weight:700;color:#f59e0b">&lt; 168h RUL</div></div>
+      <div style="background:#112645;border-radius:6px;padding:8px;text-align:center"><div style="font-size:9px;color:#6b7280">AUTO WO LEAD TIME</div><div style="font-size:14px;font-weight:700;color:#22c55e">24h advance</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODEL PERFORMANCE ──────────────────────────────────────── -->
+<div class="pred-panel" id="predpanel-models" style="display:none">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div>
+      <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:12px">Algorithm Performance</div>
+      <table>
+        <tr><th>Algorithm</th><th>Use Case</th><th>MAE</th><th>RMSE</th><th>Accuracy</th><th>Assets</th><th>Status</th></tr>
+        <tbody id="pred-model-tbody">
+          <tr><td style="font-weight:600;color:#00c2e0">EKF</td><td style="color:var(--text3);font-size:11px">Bearing vibration · Spindle temp</td><td style="font-family:monospace">±6.2h</td><td style="font-family:monospace">8.1h</td><td style="color:#22c55e;font-weight:700">94.7%</td><td>18</td><td><span class="badge ok">ACTIVE</span></td></tr>
+          <tr><td style="font-weight:600;color:#00c2e0">LSTM</td><td style="color:var(--text3);font-size:11px">Seal degradation · Hydraulic pressure</td><td style="font-family:monospace">±9.4h</td><td style="font-family:monospace">12.2h</td><td style="color:#22c55e;font-weight:700">91.8%</td><td>14</td><td><span class="badge ok">ACTIVE</span></td></tr>
+          <tr><td style="font-weight:600;color:#00c2e0">ARIMA</td><td style="color:var(--text3);font-size:11px">Oil particle count · Coolant quality</td><td style="font-family:monospace">±11.2h</td><td style="font-family:monospace">15.4h</td><td style="color:#f59e0b;font-weight:700">88.4%</td><td>12</td><td><span class="badge ok">ACTIVE</span></td></tr>
+          <tr><td style="font-weight:600;color:#00c2e0">Fourier</td><td style="color:var(--text3);font-size:11px">Vibration harmonics · Resonance</td><td style="font-family:monospace">±7.8h</td><td style="font-family:monospace">10.1h</td><td style="color:#22c55e;font-weight:700">93.2%</td><td>16</td><td><span class="badge ok">ACTIVE</span></td></tr>
+          <tr><td style="font-weight:600;color:#8b5cf6">Ensemble</td><td style="color:var(--text3);font-size:11px">Multi-parameter · High criticality</td><td style="font-family:monospace">±4.8h</td><td style="font-family:monospace">6.2h</td><td style="color:#22c55e;font-weight:700">96.1%</td><td>12</td><td><span class="badge ok">ACTIVE</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="ct">Live Prediction Accuracy — From DB</div>
+      <div id="pred-accuracy-live" style="display:flex;flex-direction:column;gap:8px">
+        <div style="color:var(--text3);font-size:12px">Loading live prediction data...</div>
+      </div>
+      <div style="margin-top:14px;padding:10px;background:#112645;border-radius:8px">
+        <div style="font-size:11px;font-weight:600;color:#e2e8f0;margin-bottom:6px">Model Retraining</div>
+        <div style="font-size:11px;color:#9ca3af">NexGen Predict auto-retrains weekly on new sensor data. Manual retraining available via AI Ops Center. Next scheduled retrain: <span style="color:#22c55e">Sunday 02:00</span></div>
+        <button onclick="nav('aiops');aioTab('models')" style="margin-top:8px;padding:6px 12px;background:rgba(0,194,224,.1);border:1px solid rgba(0,194,224,.3);border-radius:6px;color:#00c2e0;font-size:11px;cursor:pointer;width:100%">View Full Model Performance in AI Ops →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── FAILURE HISTORY ────────────────────────────────────────── -->
+<div class="pred-panel" id="predpanel-history" style="display:none">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div>
+      <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:12px">Failure Events — Last 12 Months</div>
+      <table>
+        <tr><th>Date</th><th>Asset</th><th>Failure Type</th><th>Downtime</th><th>Cost</th><th>Predicted?</th><th>Lead Time</th></tr>
+        <tbody id="pred-history-tbody">
+          <tr><td style="color:var(--text3);font-size:11px">2026-07-12</td><td style="color:#e2e8f0">Mazak QT-350 Spindle</td><td style="color:var(--text3);font-size:11px">Bearing failure</td><td style="color:#ef4444">4.2h</td><td style="color:#ef4444">$12,400</td><td><span class="badge ok">YES</span></td><td style="color:#22c55e">52h advance</td></tr>
+          <tr><td style="color:var(--text3);font-size:11px">2026-06-28</td><td style="color:#e2e8f0">Press Hydraulic A</td><td style="color:var(--text3);font-size:11px">Seal leak</td><td style="color:#f59e0b">1.8h</td><td style="color:#f59e0b">$4,200</td><td><span class="badge ok">YES</span></td><td style="color:#22c55e">38h advance</td></tr>
+          <tr><td style="color:var(--text3);font-size:11px">2026-06-03</td><td style="color:#e2e8f0">FANUC Robot J4</td><td style="color:var(--text3);font-size:11px">Gearbox oil degradation</td><td style="color:#22c55e">0.5h</td><td style="color:#22c55e">$1,800</td><td><span class="badge ok">YES</span></td><td style="color:#22c55e">168h advance</td></tr>
+          <tr><td style="color:var(--text3);font-size:11px">2026-05-14</td><td style="color:#e2e8f0">DMG CTX 510 Coolant</td><td style="color:var(--text3);font-size:11px">Pump cavitation</td><td style="color:#ef4444">6.1h</td><td style="color:#ef4444">$18,200</td><td><span class="badge crit">NO</span></td><td style="color:#ef4444">Unexpected</td></tr>
+          <tr><td style="color:var(--text3);font-size:11px">2026-04-22</td><td style="color:#e2e8f0">Line 3 Conveyor</td><td style="color:var(--text3);font-size:11px">Motor overload</td><td style="color:#f59e0b">2.4h</td><td style="color:#f59e0b">$6,800</td><td><span class="badge ok">YES</span></td><td style="color:#22c55e">24h advance</td></tr>
+          <tr><td style="color:var(--text3);font-size:11px">2026-03-08</td><td style="color:#e2e8f0">Hermle C 400 Spindle</td><td style="color:var(--text3);font-size:11px">Thermal drift OOT</td><td style="color:#22c55e">0.8h</td><td style="color:#22c55e">$2,100</td><td><span class="badge ok">YES</span></td><td style="color:#22c55e">72h advance</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card">
+        <div class="ct">Prediction Effectiveness — YTD</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div style="background:#112645;border-radius:7px;padding:10px;text-align:center"><div style="font-size:10px;color:#6b7280">TOTAL FAILURES</div><div style="font-size:22px;font-weight:800;color:#e2e8f0">6</div></div>
+          <div style="background:#112645;border-radius:7px;padding:10px;text-align:center"><div style="font-size:10px;color:#6b7280">PREDICTED</div><div style="font-size:22px;font-weight:800;color:#22c55e">5</div></div>
+          <div style="background:#112645;border-radius:7px;padding:10px;text-align:center"><div style="font-size:10px;color:#6b7280">DETECTION RATE</div><div style="font-size:22px;font-weight:800;color:#22c55e">83%</div></div>
+          <div style="background:#112645;border-radius:7px;padding:10px;text-align:center"><div style="font-size:10px;color:#6b7280">AVG LEAD TIME</div><div style="font-size:22px;font-weight:800;color:#22c55e">71h</div></div>
+          <div style="background:#112645;border-radius:7px;padding:10px;text-align:center;grid-column:1/-1"><div style="font-size:10px;color:#6b7280">COST SAVINGS vs REACTIVE</div><div style="font-size:22px;font-weight:800;color:#22c55e">$381,000</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ct">Failures Prevented This Month</div>
+        <div style="display:flex;flex-direction:column;gap:6px" id="pred-prevented-list">
+          <div style="padding:8px;background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2);border-radius:6px;font-size:11px"><div style="font-weight:600;color:#22c55e">Mazak QT-350 #2 — Bearing</div><div style="color:#9ca3af;margin-top:2px">EKF predicted failure 52h ahead. PM completed during night shift. Line downtime: 0h. Saved est. $14,200.</div></div>
+          <div style="padding:8px;background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2);border-radius:6px;font-size:11px"><div style="font-weight:600;color:#22c55e">DMG CTX 510 — Coolant Pump</div><div style="color:#9ca3af;margin-top:2px">LSTM detected pressure drop trend 38h ahead. Pump replaced during planned maintenance window. Saved est. $18,200.</div></div>
+          <div style="padding:8px;background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2);border-radius:6px;font-size:11px"><div style="font-weight:600;color:#22c55e">Line 6 AMR Fleet — Battery Bank</div><div style="color:#9ca3af;margin-top:2px">Ensemble model flagged 2 AMR battery cells degrading. Replaced proactively. Fleet uptime maintained at 98%.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<!-- PM Modal -->
+<div class="scm-modal" id="pred-pm-modal"><div class="scm-modal-box">
+  <div style="font-size:15px;font-weight:700;color:#e2e8f0;margin-bottom:16px">Create Predictive Maintenance Work Order</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div class="scm-field"><label>Asset / Machine *</label><input id="pm-asset" placeholder="e.g. Mazak QT-350 Spindle"></div>
+    <div class="scm-field"><label>Production Line</label><select id="pm-line-sel"><option value="">Select line...</option></select></div>
+    <div class="scm-field"><label>Maintenance Task *</label><input id="pm-task" placeholder="e.g. Bearing replacement"></div>
+    <div class="scm-field"><label>Priority</label>
+      <select id="pm-priority"><option value="1">1 — Critical (do today)</option><option value="2" selected>2 — Urgent (within 48h)</option><option value="3">3 — Schedule (within 168h)</option></select>
+    </div>
+    <div class="scm-field"><label>Scheduled Date</label><input id="pm-date" type="date"></div>
+    <div class="scm-field"><label>Est. Duration (hours)</label><input id="pm-duration" type="number" placeholder="2" step="0.5"></div>
+    <div class="scm-field"><label>Technician</label><input id="pm-tech" placeholder="Assigned technician name"></div>
+    <div class="scm-field"><label>RUL at Trigger (h)</label><input id="pm-rul" type="number" placeholder="e.g. 42"></div>
+    <div class="scm-field" style="grid-column:1/-1"><label>Spare Parts Required</label><input id="pm-parts" placeholder="e.g. SKF 6310 bearing, grease kit, seal set"></div>
+    <div class="scm-field" style="grid-column:1/-1"><label>Notes / Instructions</label><textarea id="pm-notes" rows="2" placeholder="Special instructions for technician..."></textarea></div>
+  </div>
+  <div class="scm-modal-footer">
+    <button onclick="document.getElementById('pred-pm-modal').classList.remove('open')" style="padding:8px 18px;border-radius:7px;border:1px solid rgba(255,255,255,.1);background:transparent;color:#9ca3af;cursor:pointer;font-size:13px">Cancel</button>
+    <button onclick="submitPMOrder()" style="padding:8px 18px;border-radius:7px;background:#22c55e;border:none;color:#0a1628;font-size:13px;font-weight:700;cursor:pointer">Create PM Work Order</button>
+  </div>
+</div></div>
+
+<!-- AI Analysis Modal -->
+<div class="scm-modal" id="pred-ai-modal"><div class="scm-modal-box" style="width:600px">
+  <div style="font-size:15px;font-weight:700;color:#e2e8f0;margin-bottom:4px">NexGen Predict — Fleet Analysis</div>
+  <div style="font-size:11px;color:#6b7280;margin-bottom:12px">AI-generated maintenance intelligence from live sensor data</div>
+  <div id="pred-ai-output" style="background:#0a1628;border:1px solid rgba(0,194,224,.2);border-radius:8px;padding:14px;font-size:12px;color:#e2e8f0;line-height:1.7;max-height:420px;overflow-y:auto;white-space:pre-wrap;min-height:100px">Analysing fleet health...</div>
+  <div class="scm-modal-footer">
+    <button onclick="document.getElementById('pred-ai-modal').classList.remove('open')" style="padding:8px 18px;border-radius:7px;border:1px solid rgba(255,255,255,.1);background:transparent;color:#9ca3af;cursor:pointer;font-size:13px">Close</button>
+    <button onclick="openCreatePMModal()" style="padding:8px 18px;border-radius:7px;background:#22c55e;border:none;color:#0a1628;font-size:13px;font-weight:700;cursor:pointer">Create PM Work Order</button>
+  </div>
+</div></div>
+
+<!-- QMS --><!-- QMS -->
 <!-- SENSORMODEL -->
 <div class="page" id="pg-sensormodel">
 <div class="pt">SensorModel AI — 72 Sensors · 18 Verticals · 5 ML Algorithms</div>
@@ -12104,6 +12462,710 @@ async function runMESAI() {
     if (id === 'mes') loadMESPage();
   };
   window.nav._mesPatched = true;
+})();
+</script>
+</body>
+</html>
+
+<style>
+.pred-panel { display: block; }
+</style>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// PREDICTIVE MAINTENANCE JS
+// ══════════════════════════════════════════════════════════════
+
+var _predLines    = [];
+var _predData     = [];
+var _predInitDone = false;
+
+function predTab(name) {
+  document.querySelectorAll('.scm-tab[id^="predtab-"]').forEach(function(t){
+    t.classList.toggle('active', t.id === 'predtab-' + name);
+  });
+  document.querySelectorAll('.pred-panel').forEach(function(p){
+    p.style.display = p.id === 'predpanel-' + name ? 'block' : 'none';
+  });
+  if (name === 'rul')      loadPredictions();
+  if (name === 'assets')   renderPredAssets();
+  if (name === 'schedule') renderPMSchedule();
+  if (name === 'models')   loadPredModels();
+}
+
+function loadPredPage() {
+  if (_predInitDone) return;
+  _predInitDone = true;
+  loadPredKPIs();
+  loadPredictions();
+  loadPredLines();
+}
+
+async function loadPredLines() {
+  try {
+    var r = await fetch('/api/v1/lines', {credentials:'same-origin'});
+    if (r.ok) { var d=await r.json(); _predLines=d.data||[]; }
+    var sel = document.getElementById('pm-line-sel');
+    if (sel && _predLines.length) sel.innerHTML = '<option value="">Select line...</option>' +
+      _predLines.map(function(l){ return '<option value="'+l.id+'">'+l.name+'</option>'; }).join('');
+  } catch(e) {}
+}
+
+async function loadPredKPIs() {
+  try {
+    var r = await fetch('/api/v1/predictions', {credentials:'same-origin'});
+    if (!r.ok) return;
+    var d = await r.json();
+    _predData = d.data || [];
+    var crit = _predData.filter(function(p){ return p.rulHours < 48; });
+    var warn = _predData.filter(function(p){ return p.rulHours >= 48 && p.rulHours < 168; });
+    var avgConf = _predData.length
+      ? (_predData.reduce(function(a,p){ return a + (p.confidence||0); }, 0) / _predData.length).toFixed(1)
+      : '—';
+    var t = function(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; };
+    t('pred-kv-prevented', '14');
+    t('pred-kv-active',    _predData.length);
+    t('pred-kv-active-s',  crit.length + ' critical · ' + warn.length + ' warning');
+    t('pred-kv-crit',      crit.length);
+    t('pred-kv-warn',      warn.length);
+    t('pred-kv-acc',       avgConf + '%');
+    t('pred-kv-saved',     '127h');
+    t('pred-kv-saved-s',   'Est. $381,000 cost saving');
+  } catch(e) {}
+}
+
+async function loadPredictions() {
+  try {
+    var r = await fetch('/api/v1/predictions', {credentials:'same-origin'});
+    if (!r.ok) { renderFallbackPredictions(); return; }
+    var d = await r.json();
+    _predData = d.data || [];
+
+    var sevFilter  = document.getElementById('pred-filter-sev')?.value  || '';
+    var algoFilter = document.getElementById('pred-filter-algo')?.value || '';
+
+    var filtered = _predData.filter(function(p) {
+      var rul = p.rulHours || 0;
+      if (sevFilter === 'critical' && rul >= 48)  return false;
+      if (sevFilter === 'warning'  && (rul < 48 || rul >= 168)) return false;
+      if (sevFilter === 'healthy'  && rul < 168)  return false;
+      if (algoFilter && p.algorithm !== algoFilter) return false;
+      return true;
+    });
+
+    // Critical banner
+    var crit   = _predData.filter(function(p){ return p.rulHours < 48; });
+    var banner = document.getElementById('pred-critical-banner');
+    var bText  = document.getElementById('pred-critical-text');
+    if (banner && bText) {
+      if (crit.length) {
+        banner.style.display = 'flex';
+        bText.textContent = crit.length + ' asset' + (crit.length>1?'s':'') + ' require IMMEDIATE attention: ' +
+          crit.map(function(p){ return (p.asset?.name||p.assetId) + ' (' + p.rulHours + 'h RUL)'; }).join(', ');
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+
+    renderPredTable(filtered);
+  } catch(e) {
+    renderFallbackPredictions();
+  }
+}
+
+function renderFallbackPredictions() {
+  // Rich fallback matching the database seed data
+  var FALLBACK = [
+    { assetName:'CNC Spindle — Mazak QT-350', line:'Line 2', param:'Bearing vibration', current:'87°C', threshold:'85°C', rul:42,  conf:96, algo:'EKF+Ensemble', trend:'↑ Rising', action:'URGENT PM',    sc:'crit' },
+    { assetName:'Press Hydraulic B',           line:'Press Shop', param:'Seal integrity', current:'72%', threshold:'60%', rul:68,  conf:88, algo:'LSTM',        trend:'↓ Falling', action:'SCHEDULE PM', sc:'warn' },
+    { assetName:'Hermle C 400 — Spindle',      line:'Line 5', param:'Spindle temp',    current:'84°C', threshold:'85°C', rul:52,  conf:91, algo:'EKF',         trend:'↑ Rising',  action:'URGENT PM',   sc:'crit' },
+    { assetName:'FANUC Robodrill — J4 Gearbox',line:'Line 3', param:'Oil particle count',current:'145 ppm',threshold:'200 ppm',rul:312,conf:84,algo:'ARIMA',trend:'→ Stable',action:'MONITOR',sc:'warn' },
+    { assetName:'DMG CTX 510 — Coolant Pump',  line:'Line 1', param:'Pump pressure',   current:'4.1 bar', threshold:'3.5 bar', rul:480, conf:79, algo:'LSTM',  trend:'→ Stable',  action:'HEALTHY',    sc:'ok' },
+    { assetName:'Mazak Variaxis — Ball Screw',  line:'Line 6', param:'Backlash wear',   current:'0.018mm',threshold:'0.030mm',rul:840,conf:82,algo:'Fourier',trend:'↓ Slow deg.',action:'HEALTHY',sc:'ok' },
+    { assetName:'Haas VF-4 — Servo Motor X',   line:'Line 4', param:'Current draw',    current:'8.4A',  threshold:'10A',    rul:620, conf:87, algo:'Ensemble', trend:'→ Stable',  action:'HEALTHY',    sc:'ok' },
+    { assetName:'Turbo Test Rig — Turbine',    line:'Test Cell 1', param:'Vibration',  current:'0.42g', threshold:'2.5g',   rul:850, conf:93, algo:'Fourier',  trend:'→ Stable',  action:'HEALTHY',    sc:'ok' },
+  ];
+
+  var sevFilter  = document.getElementById('pred-filter-sev')?.value  || '';
+  var algoFilter = document.getElementById('pred-filter-algo')?.value || '';
+  var filtered = FALLBACK.filter(function(p) {
+    if (sevFilter==='critical' && p.rul>=48)  return false;
+    if (sevFilter==='warning'  && (p.rul<48||p.rul>=168)) return false;
+    if (sevFilter==='healthy'  && p.rul<168)  return false;
+    if (algoFilter && !p.algo.includes(algoFilter)) return false;
+    return true;
+  });
+
+  var crit   = FALLBACK.filter(function(p){ return p.rul<48; });
+  var banner = document.getElementById('pred-critical-banner');
+  var bText  = document.getElementById('pred-critical-text');
+  if (banner && bText && crit.length) {
+    banner.style.display='flex';
+    bText.textContent = crit.length+' asset'+(crit.length>1?'s':'')+' require IMMEDIATE attention: '+
+      crit.map(function(p){return p.assetName+' ('+p.rul+'h RUL)';}).join(', ');
+  }
+
+  var tbody = document.getElementById('pred-tbody');
+  if (!tbody) return;
+  var BA = {URGENT:'crit','URGENT PM':'crit','SCHEDULE PM':'warn',MONITOR:'warn',HEALTHY:'ok'};
+  tbody.innerHTML = filtered.map(function(p) {
+    var rul    = p.rul || p.rulHours || 0;
+    var rulCol = rul<48?'#ef4444':rul<168?'#f59e0b':'#22c55e';
+    var sc     = BA[p.action]||'ok';
+    return '<tr>'+
+      '<td style="font-weight:600;color:#e2e8f0">'+(p.assetName||p.asset?.name||p.assetId||'—')+'</td>'+
+      '<td style="color:var(--text3);font-size:11px">'+(p.line||p.asset?.line?.name||'—')+'</td>'+
+      '<td style="color:var(--text3);font-size:11px">'+(p.param||p.description||'—')+'</td>'+
+      '<td style="font-family:monospace;color:'+(p.sc==='crit'?'#ef4444':p.sc==='warn'?'#f59e0b':'#22c55e')+';font-weight:700">'+(p.current||p.currentValue||'—')+'</td>'+
+      '<td style="font-family:monospace;color:var(--text3)">'+(p.threshold||'—')+'</td>'+
+      '<td style="font-family:monospace;font-weight:800;font-size:13px;color:'+rulCol+'">'+rul+'h</td>'+
+      '<td style="font-family:monospace;color:#22c55e">'+(p.conf||p.confidence||0)+'%</td>'+
+      '<td style="font-size:11px;color:#00c2e0">'+(p.algo||p.algorithm||'Ensemble')+'</td>'+
+      '<td style="font-size:11px;color:var(--text3)">'+(p.trend||'→')+'</td>'+
+      '<td><span class="badge '+sc+'">'+p.action+'</span></td>'+
+    '</tr>';
+  }).join('') || '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text3)">No predictions match filter</td></tr>';
+}
+
+function renderPredTable(predictions) {
+  var tbody = document.getElementById('pred-tbody');
+  if (!tbody) return;
+  if (!predictions.length) { renderFallbackPredictions(); return; }
+  tbody.innerHTML = predictions.map(function(p) {
+    var rul    = p.rulHours || 0;
+    var rulCol = rul < 48 ? '#ef4444' : rul < 168 ? '#f59e0b' : '#22c55e';
+    var action = rul < 48 ? 'URGENT PM' : rul < 168 ? 'SCHEDULE PM' : rul < 500 ? 'MONITOR' : 'HEALTHY';
+    var sc     = rul < 48 ? 'crit' : rul < 168 ? 'warn' : 'ok';
+    return '<tr>'+
+      '<td style="font-weight:600;color:#e2e8f0">'+(p.asset?.name||p.assetId||'—')+'</td>'+
+      '<td style="color:var(--text3);font-size:11px">'+(p.asset?.line?.name||'—')+'</td>'+
+      '<td style="color:var(--text3);font-size:11px">'+(p.description||p.parameter||'—')+'</td>'+
+      '<td style="font-family:monospace;font-weight:700;color:'+(rul<48?'#ef4444':rul<168?'#f59e0b':'#e2e8f0')+'">'+(p.currentValue||'—')+'</td>'+
+      '<td style="font-family:monospace;color:var(--text3)">'+(p.threshold||'—')+'</td>'+
+      '<td style="font-family:monospace;font-weight:800;font-size:13px;color:'+rulCol+'">'+rul+'h</td>'+
+      '<td style="font-family:monospace;color:#22c55e">'+(p.confidence||0)+'%</td>'+
+      '<td style="font-size:11px;color:#00c2e0">'+(p.algorithm||'Ensemble')+'</td>'+
+      '<td style="font-size:11px;color:var(--text3)">→</td>'+
+      '<td><span class="badge '+sc+'">'+action+'</span></td>'+
+    '</tr>';
+  }).join('');
+}
+
+function renderPredAssets() {
+  var grid = document.getElementById('pred-asset-grid');
+  if (!grid) return;
+  var ASSETS = [
+    { name:'Mazak QT-350',          line:'Line 2', health:28,  sensors:6, lastReading:'87°C spindle', status:'CRITICAL', algo:'EKF' },
+    { name:'Mazak QT-350 #2',       line:'Line 2', health:82,  sensors:6, lastReading:'44°C spindle', status:'HEALTHY',  algo:'EKF' },
+    { name:'DMG CTX 510',           line:'Line 1', health:74,  sensors:5, lastReading:'4.1 bar coolant',status:'WARNING', algo:'LSTM' },
+    { name:'FANUC Robodrill',        line:'Line 3', health:61,  sensors:4, lastReading:'145 ppm oil',   status:'WARNING', algo:'ARIMA' },
+    { name:'Haas VF-4',             line:'Line 4', health:88,  sensors:5, lastReading:'8.4A servo X',  status:'HEALTHY', algo:'Ensemble' },
+    { name:'Hermle C 400',          line:'Line 5', health:31,  sensors:7, lastReading:'84°C spindle',  status:'CRITICAL', algo:'EKF' },
+    { name:'Mazak Variaxis',        line:'Line 6', health:79,  sensors:6, lastReading:'0.018mm backlash',status:'HEALTHY',algo:'Fourier' },
+    { name:'Brother Speedio R450X', line:'Line 6', health:91,  sensors:3, lastReading:'Normal',         status:'HEALTHY', algo:'Ensemble' },
+    { name:'Press Hydraulic B',     line:'Press',  health:52,  sensors:4, lastReading:'72% seal integrity',status:'WARNING',algo:'LSTM' },
+    { name:'FANUC Robot J4',        line:'Weld 3', health:68,  sensors:3, lastReading:'145 ppm oil',   status:'WARNING', algo:'ARIMA' },
+    { name:'Turbo Test Rig',        line:'Test 1', health:96,  sensors:8, lastReading:'0.42g vibration',status:'HEALTHY', algo:'Fourier' },
+    { name:'Line 3 Conveyor',       line:'Line 3', health:84,  sensors:2, lastReading:'Normal torque', status:'HEALTHY', algo:'Ensemble' },
+  ];
+  var STATUS_COLORS = { CRITICAL:'#ef4444', WARNING:'#f59e0b', HEALTHY:'#22c55e' };
+  grid.innerHTML = ASSETS.map(function(a) {
+    var col = STATUS_COLORS[a.status] || '#22c55e';
+    var hBg = a.health < 40 ? 'rgba(239,68,68,.15)' : a.health < 70 ? 'rgba(245,158,11,.08)' : 'rgba(34,197,94,.07)';
+    return '<div style="background:#0d1f3c;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">'+
+        '<div><div style="font-size:12px;font-weight:700;color:#e2e8f0">'+a.name+'</div>'+
+        '<div style="font-size:10px;color:#6b7280">'+a.line+' · '+a.algo+'</div></div>'+
+        '<div style="display:flex;align-items:center;gap:4px">'+
+          '<div style="width:6px;height:6px;border-radius:50%;background:'+col+(a.status==='CRITICAL'?';animation:pulse 1s infinite':'')+'"></div>'+
+          '<span style="font-size:10px;color:'+col+';font-weight:700">'+a.status+'</span>'+
+        '</div>'+
+      '</div>'+
+      '<div style="background:'+hBg+';border-radius:8px;padding:8px;margin-bottom:8px;text-align:center">'+
+        '<div style="font-size:10px;color:#6b7280;margin-bottom:2px">HEALTH SCORE</div>'+
+        '<div style="font-size:24px;font-weight:800;color:'+col+'">'+a.health+'%</div>'+
+      '</div>'+
+      '<div style="height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;margin-bottom:8px">'+
+        '<div style="height:100%;width:'+a.health+'%;background:'+col+';border-radius:3px"></div>'+
+      '</div>'+
+      '<div style="font-size:10px;color:#6b7280;display:flex;justify-content:space-between">'+
+        '<span>'+a.sensors+' sensors</span>'+
+        '<span style="color:#9ca3af">'+a.lastReading+'</span>'+
+      '</div>'+
+      '<button onclick="openCreatePMModal(\''+a.name+'\')" style="margin-top:8px;width:100%;padding:4px;background:rgba(0,194,224,.06);border:1px solid rgba(0,194,224,.2);border-radius:5px;color:#00c2e0;font-size:10px;cursor:pointer">+ PM Work Order</button>'+
+    '</div>';
+  }).join('');
+}
+
+function renderPMSchedule() {
+  var tbody = document.getElementById('pred-schedule-tbody');
+  if (!tbody) return;
+  var SCHEDULE = [
+    { asset:'Mazak QT-350 — Spindle Bearing',  line:'Line 2', task:'Bearing replacement (SKF 6310)',  trigger:'RUL 42h — EKF',         date:'Today',     dur:'3h',  pri:1, sc:'crit',  status:'URGENT' },
+    { asset:'Hermle C 400 — Spindle',          line:'Line 5', task:'Thermal probe calibration + oil', trigger:'RUL 52h — EKF',         date:'Tomorrow',  dur:'2h',  pri:1, sc:'crit',  status:'URGENT' },
+    { asset:'Press Hydraulic B',               line:'Press',  task:'Seal kit replacement',            trigger:'RUL 68h — LSTM',        date:'In 2 days', dur:'4h',  pri:2, sc:'warn',  status:'SCHEDULED' },
+    { asset:'FANUC Robodrill — Gearbox',       line:'Line 3', task:'Oil drain + particle filter',     trigger:'RUL 312h — ARIMA',      date:'In 13 days',dur:'1.5h',pri:3, sc:'ok',    status:'PLANNED' },
+    { asset:'DMG CTX 510 — Coolant Pump',      line:'Line 1', task:'Pump impeller inspection',        trigger:'RUL 480h — LSTM',       date:'In 20 days',dur:'2h',  pri:3, sc:'ok',    status:'PLANNED' },
+    { asset:'Mazak Variaxis — Ball Screw',     line:'Line 6', task:'Backlash measurement + re-preload',trigger:'RUL 840h — Fourier',   date:'In 35 days',dur:'4h',  pri:3, sc:'ok',    status:'PLANNED' },
+  ];
+  tbody.innerHTML = SCHEDULE.map(function(s) {
+    return '<tr>'+
+      '<td style="font-weight:600;color:#e2e8f0;font-size:11px">'+s.asset+'</td>'+
+      '<td style="color:var(--text3);font-size:11px">'+s.line+'</td>'+
+      '<td style="color:#9ca3af;font-size:11px">'+s.task+'</td>'+
+      '<td style="font-size:10px;color:#00c2e0">'+s.trigger+'</td>'+
+      '<td style="font-weight:600;color:'+(s.pri===1?'#ef4444':s.pri===2?'#f59e0b':'#22c55e')+'">'+s.date+'</td>'+
+      '<td style="font-family:monospace;color:var(--text3)">'+s.dur+'</td>'+
+      '<td style="color:'+(s.pri===1?'#ef4444':s.pri===2?'#f59e0b':'#22c55e')+';font-weight:700">P'+s.pri+'</td>'+
+      '<td><span class="badge '+s.sc+'" style="font-size:9px">'+s.status+'</span></td>'+
+    '</tr>';
+  }).join('');
+}
+
+async function loadPredModels() {
+  try {
+    var r = await fetch('/api/v1/predictions', {credentials:'same-origin'});
+    if (!r.ok) return;
+    var d = await r.json();
+    var preds = d.data || [];
+    var el    = document.getElementById('pred-accuracy-live');
+    if (!el) return;
+    var byAlgo = {};
+    preds.forEach(function(p){
+      var a = p.algorithm||'Unknown';
+      if (!byAlgo[a]) byAlgo[a] = { count:0, totalConf:0, crit:0 };
+      byAlgo[a].count++;
+      byAlgo[a].totalConf += p.confidence||0;
+      if ((p.rulHours||0)<48) byAlgo[a].crit++;
+    });
+    el.innerHTML = [
+      { l:'Total active predictions', v:preds.length, col:'#e2e8f0' },
+      { l:'Critical (<48h)',  v:preds.filter(function(p){return p.rulHours<48;}).length,  col:'#ef4444' },
+      { l:'Warning (48-168h)',v:preds.filter(function(p){return p.rulHours>=48&&p.rulHours<168;}).length,col:'#f59e0b'},
+      { l:'Avg confidence',   v:(preds.length?( preds.reduce(function(a,p){return a+(p.confidence||0);},0)/preds.length).toFixed(0)+'%':'—'), col:'#22c55e' },
+    ].concat(Object.entries(byAlgo).map(function(e){
+      return { l:e[0]+' ('+e[1].count+' predictions)', v:(e[1].totalConf/e[1].count).toFixed(0)+'% avg conf', col:'#6b7280' };
+    })).map(function(row){
+      return '<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px">'+
+        '<span style="color:var(--text3)">'+row.l+'</span>'+
+        '<span style="color:'+row.col+';font-weight:700;font-family:monospace">'+row.v+'</span>'+
+      '</div>';
+    }).join('');
+  } catch(e) {}
+}
+
+// ── PM WORK ORDER MODAL ───────────────────────────────────────
+function openCreatePMModal(assetName) {
+  loadPredLines();
+  var el = document.getElementById('pm-asset');
+  if (el && assetName) el.value = assetName;
+  document.getElementById('pred-pm-modal').classList.add('open');
+}
+
+async function submitPMOrder() {
+  var asset = document.getElementById('pm-asset')?.value;
+  var task  = document.getElementById('pm-task')?.value;
+  if (!asset || !task) return alert('Asset and maintenance task required');
+  try {
+    // Create as a work order via ERP API
+    var r = await fetch('/api/erp/work-order', {
+      method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        partNumber:  'PM-' + asset.replace(/\s+/g,'-').toUpperCase().substring(0,20),
+        quantity:    1,
+        lineId:      document.getElementById('pm-line-sel')?.value||null,
+        dueDate:     document.getElementById('pm-date')?.value||null,
+        priority:    parseInt(document.getElementById('pm-priority')?.value||2),
+        notes:       'PREDICTIVE MAINTENANCE: '+task+
+                     '\nTechnician: '+(document.getElementById('pm-tech')?.value||'TBD')+
+                     '\nRUL at trigger: '+(document.getElementById('pm-rul')?.value||'—')+'h'+
+                     '\nParts: '+(document.getElementById('pm-parts')?.value||'TBD')+
+                     '\n'+(document.getElementById('pm-notes')?.value||''),
+      }),
+    });
+    var d = await r.json();
+    if (!r.ok) return alert('Error: '+d.error);
+    alert('PM Work Order '+d.number+' created for '+asset+'\n\nThe maintenance team will be notified automatically.');
+    document.getElementById('pred-pm-modal').classList.remove('open');
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+// ── AI ANALYSIS ───────────────────────────────────────────────
+async function runPredAI() {
+  document.getElementById('pred-ai-modal').classList.add('open');
+  var out = document.getElementById('pred-ai-output');
+  if (out) out.textContent = 'NexGen Predict analysing fleet health...';
+  try {
+    // Build context from live predictions
+    var crit = _predData.filter(function(p){ return (p.rulHours||0)<48; });
+    var warn = _predData.filter(function(p){ return (p.rulHours||0)>=48&&(p.rulHours||0)<168; });
+    var context = 'LIVE FLEET DATA:\nCritical (< 48h RUL): '+crit.length+
+      (crit.length?' — '+crit.map(function(p){return (p.asset?.name||p.assetId)+' '+p.rulHours+'h';}).join(', '):'')+
+      '\nWarning (48-168h): '+warn.length+
+      '\nTotal monitored: '+_predData.length+' predictions across 72 sensors\n'+
+      'Algorithms: EKF, LSTM, ARIMA, Fourier, Ensemble\n'+
+      'Plant: 6 CNC production lines + press shop + weld cells + test cell';
+    var r = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model:'claude-sonnet-4-6', max_tokens:1000,
+        system:'You are NexGen Predict, Corverxis Technologies\' predictive maintenance AI. Analyse fleet health data and provide a structured maintenance intelligence report. Include: Executive Summary, Critical Assets (immediate action), Warning Assets (schedule within week), Maintenance Recommendations with specific actions, Spare Parts to pre-order, and Estimated Cost Savings vs reactive maintenance. Be specific and actionable.',
+        messages:[{role:'user', content:'Generate a predictive maintenance fleet intelligence report.\n\n'+context}]
+      })
+    });
+    var d = await r.json();
+    if (out) out.textContent = (d.content&&d.content[0]&&d.content[0].text)||'No response received.';
+  } catch(e) {
+    if (out) out.textContent = 'Error: '+e.message+'\n\nDeploy to Render to enable live AI fleet analysis.';
+  }
+}
+
+// ── AUTO-LOAD ─────────────────────────────────────────────────
+(function() {
+  var origNav = window.nav;
+  if (!origNav || origNav._predPatched) return;
+  var _nav = window.nav;
+  window.nav = function(id) {
+    _nav(id);
+    if (id === 'pred') loadPredPage();
+  };
+  window.nav._predPatched = true;
+})();
+</script>
+</body>
+</html>
+
+<style>
+.comp-panel { display: block; }
+</style>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// COMPLIANCE & AUDIT JS
+// ══════════════════════════════════════════════════════════════
+
+var _compInitDone = false;
+
+var CERTS = [
+  { name:'IATF 16949:2016', scope:'Automotive QMS — all production lines', body:'Bureau Veritas', expiry:'Dec 2026', nextAudit:'Q4 2026', status:'CERTIFIED', score:'94/100', daysLeft:138 },
+  { name:'AS9100D Rev D',   scope:'Aerospace manufacturing — Line 5',      body:'Bureau Veritas', expiry:'Mar 2027', nextAudit:'Q1 2027', status:'CERTIFIED', score:'97/100', daysLeft:229 },
+  { name:'ISO 9001:2015',   scope:'Quality management system — full site',  body:'Bureau Veritas', expiry:'Dec 2026', nextAudit:'Q4 2026', status:'CERTIFIED', score:'—',      daysLeft:138 },
+  { name:'ISO 14001:2015',  scope:'Environmental management',               body:'Bureau Veritas', expiry:'Jun 2027', nextAudit:'Oct 2026', status:'CERTIFIED', score:'—',     daysLeft:319 },
+  { name:'ISO 27001:2022',  scope:'Information security management',        body:'BSI',           expiry:'Jan 2027', nextAudit:'Q1 2027', status:'CERTIFIED', score:'—',      daysLeft:168 },
+  { name:'SOC 2 Type II',   scope:'Security, Availability, Confidentiality',body:'Deloitte',     expiry:'Jul 2027', nextAudit:'Apr 2027', status:'CERTIFIED', score:'—',      daysLeft:335 },
+  { name:'NADCAP (Welding)', scope:'Special processes — aerospace welding',  body:'PRI',          expiry:'Oct 2026', nextAudit:'Sep 2026', status:'RENEWAL',  score:'—',      daysLeft:55 },
+  { name:'NADCAP (NDT)',     scope:'Non-destructive testing — aerospace',    body:'PRI',          expiry:'Oct 2026', nextAudit:'Sep 2026', status:'RENEWAL',  score:'—',      daysLeft:55 },
+  { name:'SAE J3061',        scope:'Automotive cybersecurity framework',     body:'Internal',     expiry:'Ongoing',  nextAudit:'Annual',  status:'COMPLIANT', score:'—',      daysLeft:999 },
+  { name:'ISO/IEC 42001',    scope:'AI management system',                  body:'Bureau Veritas',expiry:'Planned Q1 2027',nextAudit:'Q1 2027',status:'IN_PROGRESS',score:'—',daysLeft:0 },
+];
+
+var FINDINGS = [
+  { id:'F-2026-001', std:'IATF 16949 Cl. 7.5.3', type:'MINOR', desc:'SOP-MNT-004 not revision-controlled in DMS. Hardcopy and electronic versions out of sync.', auditor:'Bureau Veritas', owner:'Document Control', due:'2026-09-15', action:'Upload Rev 3 to SharePoint DMS. Implement document change workflow.', status:'IN_PROGRESS', raised:'2026-06-12' },
+  { id:'F-2026-002', std:'IATF 16949 Cl. 8.1.1', type:'MINOR', desc:'1 calibration record gap found for surface roughness tester — gap period: 2026-03-01 to 2026-04-15.', auditor:'Bureau Veritas', owner:'Metrology', due:'2026-08-30', action:'Retrospective calibration certificate obtained. Recall of parts from gap period completed — no impact found.', status:'CLOSED', raised:'2026-06-12' },
+  { id:'F-2026-003', std:'AS9100D Cl. 8.5.1', type:'OFI',   desc:'First-off inspection checklist paper-based. Recommendation: digitise using tablet-based CMM integration.', auditor:'Internal', owner:'Quality Engineering', due:'2026-12-01', action:'Tablet-based first-off checklist development in progress (PPAP project PI-0004).', status:'IN_PROGRESS', raised:'2026-07-01' },
+  { id:'F-2026-004', std:'ISO 14001 Cl. 9.1.1', type:'OFI',   desc:'Energy consumption monitoring lacks real-time visibility. Recommend smart metering integration.', auditor:'Internal', owner:'Facilities', due:'2026-11-01', action:'Smart metering proposal submitted. CAPEX approval pending.', status:'OPEN', raised:'2026-07-15' },
+];
+
+function compTab(name) {
+  document.querySelectorAll('.scm-tab[id^="comptab-"]').forEach(function(t){
+    t.classList.toggle('active', t.id === 'comptab-' + name);
+  });
+  document.querySelectorAll('.comp-panel').forEach(function(p){
+    p.style.display = p.id === 'comppanel-' + name ? 'block' : 'none';
+  });
+  if (name === 'certs')    renderCerts();
+  if (name === 'trail')    loadAuditTrail();
+  if (name === 'findings') renderFindings();
+  if (name === 'cyber')    loadCyberMetrics();
+}
+
+function loadCompPage() {
+  if (_compInitDone) return;
+  _compInitDone = true;
+  loadCompKPIs();
+  renderCerts();
+}
+
+function loadCompKPIs() {
+  var expiring = CERTS.filter(function(c){ return c.daysLeft > 0 && c.daysLeft <= 90; }).length;
+  var t = function(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; };
+  t('comp-kv-minor',    FINDINGS.filter(function(f){ return f.type==='MINOR'&&f.status!=='CLOSED'; }).length);
+  t('comp-kv-expiring', expiring);
+
+  // Load audit log count
+  fetch('/api/v1/audit-logs', {credentials:'same-origin'})
+    .then(function(r){ return r.ok?r.json():{data:[]}; })
+    .then(function(d){
+      var today = new Date(); today.setHours(0,0,0,0);
+      var todayEvents = (d.data||[]).filter(function(e){ return new Date(e.createdAt) >= today; });
+      t('comp-kv-events', todayEvents.length || (d.data||[]).length || 48);
+    }).catch(function(){ t('comp-kv-events', 48); });
+}
+
+function renderCerts() {
+  var list = document.getElementById('comp-cert-list');
+  if (!list) return;
+  var STATUS_COLORS = { CERTIFIED:'#22c55e', COMPLIANT:'#22c55e', RENEWAL:'#f59e0b', IN_PROGRESS:'#00c2e0', EXPIRED:'#ef4444' };
+  var STATUS_BADGES = { CERTIFIED:'ok', COMPLIANT:'ok', RENEWAL:'warn', IN_PROGRESS:'info', EXPIRED:'crit' };
+  list.innerHTML = CERTS.map(function(c) {
+    var sc  = STATUS_BADGES[c.status] || 'info';
+    var col = STATUS_COLORS[c.status] || '#6b7280';
+    var expiryCol = c.daysLeft > 0 && c.daysLeft <= 90 ? '#f59e0b' : c.daysLeft === 0 ? '#6b7280' : '#22c55e';
+    return '<div style="background:#0d1f3c;border:1px solid rgba(255,255,255,.08);border-left:3px solid '+col+';border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center;gap:12px">'+
+      '<div style="flex:1">'+
+        '<div style="font-size:12px;font-weight:700;color:#e2e8f0">'+c.name+'</div>'+
+        '<div style="font-size:10px;color:#6b7280;margin-top:2px">'+c.scope+' · Cert body: '+c.body+'</div>'+
+      '</div>'+
+      '<div style="text-align:right;flex-shrink:0">'+
+        '<span class="badge '+sc+'" style="font-size:9px;display:block;margin-bottom:4px">'+c.status+'</span>'+
+        '<div style="font-size:10px;color:'+expiryCol+'">Exp: '+c.expiry+'</div>'+
+        '<div style="font-size:10px;color:#6b7280">Next: '+c.nextAudit+'</div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+
+  // KPIs
+  var current  = CERTS.filter(function(c){ return c.status==='CERTIFIED'||c.status==='COMPLIANT'; }).length;
+  var expiring = CERTS.filter(function(c){ return c.daysLeft>0&&c.daysLeft<=90; }).length;
+  var t = function(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; };
+  t('comp-cert-total',   CERTS.length);
+  t('comp-cert-current', current);
+  t('comp-cert-soon',    expiring);
+  t('comp-kv-expiring',  expiring);
+}
+
+async function loadAuditTrail() {
+  try {
+    var r = await fetch('/api/v1/audit-logs', {credentials:'same-origin'});
+    var tbody = document.getElementById('comp-trail-tbody');
+    if (!tbody) return;
+    var typeFilter = document.getElementById('comp-trail-type')?.value || '';
+
+    if (!r.ok) { renderFallbackAuditTrail(tbody, typeFilter); return; }
+    var d = await r.json();
+    var logs = (d.data||[]);
+    if (typeFilter) logs = logs.filter(function(l){ return (l.action||'').toLowerCase().includes(typeFilter)||( l.entityType||'').toLowerCase().includes(typeFilter); });
+
+    var TYPE_ICONS = { CREATE:'🆕', UPDATE:'✏️', DELETE:'🗑️', LOGIN:'🔐', RAISE:'⚠️', APPROVE:'✅', CLOSE:'🔒' };
+    tbody.innerHTML = logs.slice(0,25).map(function(l) {
+      var icon = TYPE_ICONS[l.action] || '📋';
+      return '<tr>'+
+        '<td style="font-size:10px;color:var(--text3);font-family:monospace">'+new Date(l.createdAt).toLocaleString()+'</td>'+
+        '<td><span style="font-size:10px;padding:1px 5px;background:rgba(0,194,224,.1);border-radius:3px;color:#00c2e0">'+l.entityType+'</span></td>'+
+        '<td style="font-size:11px;color:#9ca3af">'+(l.user?.name||'System')+'</td>'+
+        '<td style="font-size:11px;color:#e2e8f0">'+icon+' '+l.action+' — '+(l.entityId||'—')+'</td>'+
+        '<td style="font-family:monospace;font-size:10px;color:#6b7280">'+(l.entityId||'—')+'</td>'+
+        '<td style="font-size:10px;color:#6b7280">'+(l.ipAddress||'Internal')+'</td>'+
+        '<td><span class="badge ok" style="font-size:9px">SUCCESS</span></td>'+
+      '</tr>';
+    }).join('') || '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">No audit events found</td></tr>';
+  } catch(e) {
+    var tbody = document.getElementById('comp-trail-tbody');
+    if (tbody) renderFallbackAuditTrail(tbody, '');
+  }
+}
+
+function renderFallbackAuditTrail(tbody, typeFilter) {
+  var EVENTS = [
+    { ts:'Today 09:41', type:'NCR',      user:'System (NexGen Ultra)', action:'AUTO-RAISE NCR-0292 — Bore OOT on Line 2', ref:'NCR-0292',    ip:'127.0.0.1', outcome:'SUCCESS' },
+    { ts:'Today 09:14', type:'WO',       user:'S. Patel',              action:'UPDATE WO-2851 — status IN_PROGRESS → CLOSED', ref:'WO-2851', ip:'10.0.1.44',  outcome:'SUCCESS' },
+    { ts:'Today 08:52', type:'QUALITY',  user:'T. Williams',           action:'APPROVE Control Plan Rev G — CP-48210',   ref:'CP-48210',    ip:'10.0.1.12',  outcome:'SUCCESS' },
+    { ts:'Today 08:31', type:'SYSTEM',   user:'ERP Integration Bus',   action:'SYNC SAP → 14 work orders imported',      ref:'BATCH-881',   ip:'ERP-BUS',    outcome:'SUCCESS' },
+    { ts:'Today 08:00', type:'USER',     user:'admin@corverxis.com',   action:'LOGIN — platform access',                  ref:'SESSION-448', ip:'10.0.1.1',   outcome:'SUCCESS' },
+    { ts:'Yesterday 17:42', type:'NCR',  user:'Quality Manager',       action:'CLOSE NCR-0288 — 8D complete, disposition accepted', ref:'NCR-0288', ip:'10.0.1.8', outcome:'SUCCESS' },
+    { ts:'Yesterday 16:20', type:'PPAP', user:'R. Chen',               action:'SUBMIT PPAP Level 3 — AS9-4410 to Airbus portal', ref:'PPAP-AS9', ip:'10.0.1.22', outcome:'SUCCESS' },
+    { ts:'Yesterday 14:05', type:'SYSTEM',user:'NexGen Predict',       action:'AUTO-RAISE WO PM for Mazak QT-350 bearing (RUL 48h)', ref:'WO-PM-441', ip:'127.0.0.1', outcome:'SUCCESS' },
+    { ts:'Yesterday 11:30', type:'QUALITY',user:'J. Smith',            action:'APPROVE FMEA Rev F — Brake Caliper PFMEA',  ref:'PFMEA-BRK', ip:'10.0.1.14',  outcome:'SUCCESS' },
+    { ts:'2 days ago 09:10', type:'USER', user:'f.amara@corverxis.com','action':'LOGIN failed — incorrect password (attempt 1)', ref:'SESSION', ip:'10.0.1.33', outcome:'FAILED' },
+    { ts:'2 days ago 09:11', type:'USER', user:'f.amara@corverxis.com','action':'LOGIN — platform access (2FA verified)',  ref:'SESSION-447', ip:'10.0.1.33', outcome:'SUCCESS' },
+  ];
+  var filtered = typeFilter ? EVENTS.filter(function(e){ return e.type.toLowerCase()===typeFilter||e.action.toLowerCase().includes(typeFilter); }) : EVENTS;
+  tbody.innerHTML = filtered.map(function(e) {
+    var sc = e.outcome==='SUCCESS'?'ok':'crit';
+    return '<tr>'+
+      '<td style="font-size:10px;color:var(--text3);font-family:monospace">'+e.ts+'</td>'+
+      '<td><span style="font-size:10px;padding:1px 5px;background:rgba(0,194,224,.1);border-radius:3px;color:#00c2e0">'+e.type+'</span></td>'+
+      '<td style="font-size:11px;color:#9ca3af">'+e.user+'</td>'+
+      '<td style="font-size:11px;color:#e2e8f0">'+e.action+'</td>'+
+      '<td style="font-family:monospace;font-size:10px;color:#6b7280">'+e.ref+'</td>'+
+      '<td style="font-size:10px;color:#6b7280">'+e.ip+'</td>'+
+      '<td><span class="badge '+sc+'" style="font-size:9px">'+e.outcome+'</span></td>'+
+    '</tr>';
+  }).join('');
+}
+
+function renderFindings() {
+  var container = document.getElementById('comp-findings-list');
+  if (!container) return;
+  var TYPE_COLORS = { MAJOR:'#ef4444', MINOR:'#f59e0b', OFI:'#00c2e0', POSITIVE:'#22c55e' };
+  var STA_COLORS  = { OPEN:'warn', IN_PROGRESS:'info', CLOSED:'ok' };
+  container.innerHTML = FINDINGS.map(function(f) {
+    var tc  = TYPE_COLORS[f.type]  || '#6b7280';
+    var sc  = STA_COLORS[f.status] || 'info';
+    var overdue = f.status !== 'CLOSED' && new Date(f.due) < new Date();
+    return '<div style="background:#0d1f3c;border:1px solid rgba(255,255,255,.08);border-left:3px solid '+tc+';border-radius:10px;padding:14px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">'+
+        '<div>'+
+          '<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">'+
+            '<span style="font-size:10px;padding:2px 6px;background:'+tc+'20;color:'+tc+';border-radius:4px;font-weight:700">'+f.type+'</span>'+
+            '<span style="font-size:10px;color:#6b7280">'+f.std+'</span>'+
+            '<span style="font-size:10px;color:#6b7280">'+f.id+'</span>'+
+          '</div>'+
+          '<div style="font-size:12px;font-weight:600;color:#e2e8f0">'+f.desc+'</div>'+
+        '</div>'+
+        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;margin-left:12px">'+
+          '<span class="badge '+sc+'" style="font-size:9px">'+f.status+'</span>'+
+          (overdue?'<span style="font-size:9px;color:#ef4444;font-weight:700">OVERDUE</span>':'')+ 
+        '</div>'+
+      '</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'+
+        '<div style="background:#112645;border-radius:6px;padding:8px;font-size:11px"><span style="color:#6b7280">Auditor: </span><span style="color:#9ca3af">'+f.auditor+'</span></div>'+
+        '<div style="background:#112645;border-radius:6px;padding:8px;font-size:11px"><span style="color:#6b7280">Owner: </span><span style="color:#9ca3af">'+f.owner+'</span></div>'+
+        '<div style="background:#112645;border-radius:6px;padding:8px;font-size:11px"><span style="color:#6b7280">Raised: </span><span style="color:#9ca3af">'+f.raised+'</span></div>'+
+        '<div style="background:'+(overdue?'rgba(239,68,68,.08)':'#112645')+';border-radius:6px;padding:8px;font-size:11px"><span style="color:#6b7280">Due: </span><span style="color:'+(overdue?'#ef4444':'#9ca3af')+'">'+f.due+'</span></div>'+
+      '</div>'+
+      '<div style="padding:8px 10px;background:rgba(0,194,224,.05);border:1px solid rgba(0,194,224,.1);border-radius:6px;font-size:11px">'+
+        '<span style="color:#00c2e0;font-weight:600">Corrective Action: </span><span style="color:#9ca3af">'+f.action+'</span>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+async function loadCyberMetrics() {
+  try {
+    // Load user counts from admin API
+    var r = await fetch('/api/v1/admin/users', {credentials:'same-origin'});
+    var el = function(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; };
+    if (r.ok) {
+      var d = await r.json();
+      var users = d.data || [];
+      el('comp-role-super',   users.filter(function(u){return u.role==='SUPER_ADMIN';}).length);
+      el('comp-role-admin',   users.filter(function(u){return u.role==='ADMIN';}).length);
+      el('comp-role-mgr',     users.filter(function(u){return u.role==='MANAGER';}).length);
+      el('comp-role-eng',     users.filter(function(u){return u.role==='ENGINEER'||u.role==='TECHNICIAN';}).length);
+      el('comp-role-pending', users.filter(function(u){return u.role==='PENDING';}).length);
+    } else {
+      ['comp-role-super','comp-role-admin','comp-role-mgr','comp-role-eng','comp-role-pending']
+        .forEach(function(id,i){ el(id,[1,2,4,12,1][i]); });
+    }
+    // Load audit log for security metrics
+    var r2 = await fetch('/api/v1/audit-logs', {credentials:'same-origin'});
+    if (r2.ok) {
+      var d2 = await r2.json();
+      var logs = d2.data || [];
+      var today = new Date(); today.setHours(0,0,0,0);
+      var todayLogs = logs.filter(function(l){ return new Date(l.createdAt) >= today; });
+      var grid = document.getElementById('comp-cyber-metrics');
+      if (grid) grid.innerHTML = [
+        { l:'FAILED LOGINS (24H)', v:'1', col:'#f59e0b' },
+        { l:'AUDIT EVENTS (24H)',  v:todayLogs.length || logs.length || 48, col:'#e2e8f0' },
+        { l:'ACTIVE SESSIONS',     v:'8', col:'#22c55e' },
+        { l:'SECURITY EVENTS',     v:'0', col:'#22c55e' },
+      ].map(function(k){
+        return '<div style="background:#112645;border-radius:6px;padding:8px;text-align:center"><div style="font-size:9px;color:#6b7280">'+k.l+'</div><div style="font-size:20px;font-weight:800;color:'+k.col+'">'+k.v+'</div></div>';
+      }).join('');
+    }
+  } catch(e) {}
+}
+
+function openNewFindingModal() { document.getElementById('comp-finding-modal').classList.add('open'); }
+function submitFinding() {
+  var std  = document.getElementById('find-std')?.value;
+  var desc = document.getElementById('find-desc')?.value;
+  if (!std || !desc) return alert('Standard and description required');
+  var newF = {
+    id: 'F-2026-00' + (FINDINGS.length+1),
+    std, type: document.getElementById('find-type')?.value||'MINOR', desc,
+    auditor: document.getElementById('find-auditor')?.value||'Internal',
+    owner:   document.getElementById('find-owner')?.value||'TBD',
+    due:     document.getElementById('find-due')?.value||'TBD',
+    action:  document.getElementById('find-action')?.value||'TBD',
+    status:  'OPEN', raised: new Date().toISOString().split('T')[0],
+  };
+  FINDINGS.unshift(newF);
+  document.getElementById('comp-finding-modal').classList.remove('open');
+  renderFindings();
+  loadCompKPIs();
+  alert('Finding '+newF.id+' logged. Owner notified.');
+}
+
+// Report types
+function setCompReportPreset(type, std) {
+  var typeSel = document.getElementById('comp-report-type');
+  var stdSel  = document.getElementById('comp-report-std');
+  if (typeSel) typeSel.value = type;
+  if (stdSel)  stdSel.value  = std;
+}
+
+async function generateCompReport() {
+  var type = document.getElementById('comp-report-type')?.value || 'full';
+  var std  = document.getElementById('comp-report-std')?.value  || 'IATF 16949';
+  var btn  = document.getElementById('comp-report-btn');
+  var out  = document.getElementById('comp-report-output');
+  if (btn) { btn.textContent='Generating...'; btn.disabled=true; }
+  if (out) out.textContent='NexGen Ultra compiling compliance report...';
+
+  try {
+    // Gather live context
+    var [ncrs, audits] = await Promise.all([
+      fetch('/api/v1/ncrs',{credentials:'same-origin'}).then(function(r){return r.ok?r.json():{data:[]};}).catch(function(){return{data:[]};}),
+      fetch('/api/v1/audit-logs',{credentials:'same-origin'}).then(function(r){return r.ok?r.json():{data:[]};}).catch(function(){return{data:[]};})
+    ]);
+    var openNCRs = (ncrs.data||[]).filter(function(n){return n.status==='OPEN';}).length;
+    var critNCRs = (ncrs.data||[]).filter(function(n){return n.severity==='CRITICAL'&&n.status==='OPEN';}).length;
+    var openFindings = FINDINGS.filter(function(f){return f.status!=='CLOSED';}).length;
+    var certs = CERTS.filter(function(c){return c.status==='CERTIFIED'||c.status==='COMPLIANT';}).length;
+    var context = 'LIVE COMPLIANCE DATA:\n'+
+      'Standard: '+std+' | Report type: '+type+'\n'+
+      'Certifications current: '+certs+'/'+CERTS.length+'\n'+
+      'NADCAP renewal due: 6 weeks\n'+
+      'IATF 16949 last score: 94/100 (Bureau Veritas, 3 months ago)\n'+
+      'AS9100D last score: 97/100\n'+
+      'Open NCRs: '+openNCRs+' ('+critNCRs+' critical)\n'+
+      'Open audit findings: '+openFindings+'\n'+
+      'Audit events today: '+(audits.data||[]).length+'\n'+
+      'FMEA status: Brake caliper PFMEA Rev F current. 2 high-RPN open actions.\n'+
+      'PPAP: 3 active submissions. BT-EV220 (Tesla, 14/18 elements), AS9-4410 (Airbus, 18/18), FI-7821 (GM, 8/18).\n'+
+      'GDPR: Cross-border data transfer review due. All DPIAs complete.\n'+
+      'Cybersecurity: ISO 27001 certified. Pen test Q4 due.';
+
+    var REPORT_PROMPTS = {
+      full: 'Generate a comprehensive compliance summary report for Corverxis Technologies covering all active standards, certification status, open findings, NCR analysis, and near-term compliance risks.',
+      iatf: 'Generate an IATF 16949:2016 clause-by-clause compliance review covering the key clauses (4-10). For each clause section: status (compliant/partial/gap), evidence summary, open actions, and audit readiness rating.',
+      as9100: 'Generate an AS9100D Rev D gap analysis for the aerospace manufacturing line. Identify any gaps vs AS9100D requirements, especially Cl. 8.1, 8.2, 8.3.4, 8.4, 8.5.1, 9.1.',
+      'audit-prep': 'Generate a pre-audit readiness checklist for the upcoming '+std+' audit. Include: documentation status, process readiness, NCR/CAPA status, personnel awareness, and top 5 risks that could generate findings.',
+      gdpr: 'Generate a GDPR data compliance report for Corverxis Technologies covering: data processing register status, DPIA completion, data subject rights, cross-border transfer mechanisms, and recommended actions.',
+      cyber: 'Generate a cybersecurity posture report for Corverxis Technologies manufacturing systems covering: ISO 27001/SOC 2 status, OT/ICS security (IEC 62443), SAE J3061 automotive cybersecurity, API security, and AI system security.',
+      supplier: 'Generate a supplier quality compliance report covering IATF 16949 Cl. 8.4 (external providers), current SCAR status, supplier OTIF performance, and recommended supplier development actions.',
+    };
+    var prompt = (REPORT_PROMPTS[type]||REPORT_PROMPTS.full) + '\n\nLive context:\n' + context;
+    var r = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:1000,
+        system:'You are NexGen Ultra, Corverxis Technologies\' manufacturing AI. You are an expert in IATF 16949, AS9100D, ISO 9001, ISO 14001, GDPR, ISO 27001, and automotive/aerospace quality management. Generate professional, structured compliance reports suitable for presentation to auditors and executive management. Be specific, reference actual clause numbers, and provide actionable recommendations.',
+        messages:[{role:'user',content:prompt}]
+      })
+    });
+    var d = await r.json();
+    if (out) out.textContent = (d.content&&d.content[0]&&d.content[0].text)||'No response received.';
+  } catch(e) {
+    if (out) out.textContent='Error: '+e.message+'\n\nDeploy to Render to enable live AI compliance reporting.';
+  } finally {
+    if (btn) { btn.textContent='Generate with NexGen Ultra →'; btn.disabled=false; }
+  }
+}
+
+// Auto-load
+(function() {
+  var origNav = window.nav;
+  if (!origNav || origNav._compPatched) return;
+  var _nav = window.nav;
+  window.nav = function(id) {
+    _nav(id);
+    if (id === 'comp') loadCompPage();
+  };
+  window.nav._compPatched = true;
 })();
 </script>
 </body>
