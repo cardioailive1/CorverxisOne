@@ -552,175 +552,117 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 <!-- IIoT -->
 <div class="page" id="pg-iiot">
 <div class="pt">IIoT — Industrial Internet of Things</div>
-<div class="ps">72 sensors · 18 verticals · OPC-UA · MQTT · 10 Hz live · WebSocket · EKF · LSTM · ARIMA · Fourier · Ensemble ML</div>
+<div class="ps">72 sensors · 18 verticals · OPC-UA · MQTT · 10 Hz live · WebSocket · EKF · LSTM · Ensemble ML</div>
 
 <div class="kg">
-  <div class="kpi"><div class="kpi-l">Active Sensors</div><div class="kpi-v" id="iiot-kv-sensors" style="color:var(--green)">72</div><div class="kpi-s" id="iiot-kv-sensors-s">All connected · 10 Hz</div></div>
-  <div class="kpi"><div class="kpi-l">Critical Alerts</div><div class="kpi-v" id="iiot-kv-crit" style="color:var(--red)">2</div><div class="kpi-s">Immediate action required</div></div>
-  <div class="kpi"><div class="kpi-l">Warning Alerts</div><div class="kpi-v" id="iiot-kv-warn" style="color:var(--amber)">5</div><div class="kpi-s">Approaching threshold</div></div>
+  <div class="kpi" style="cursor:pointer" onclick="iiotFilterStatus('')"><div class="kpi-l">Active Sensors</div><div class="kpi-v" id="iiot-kv-total" style="color:var(--green)">72</div><div class="kpi-s">Click to view all</div></div>
+  <div class="kpi" style="cursor:pointer" onclick="iiotFilterStatus('critical')"><div class="kpi-l">Critical Alerts</div><div class="kpi-v" id="iiot-kv-crit" style="color:var(--red)">2</div><div class="kpi-s">Click to view critical</div></div>
+  <div class="kpi" style="cursor:pointer" onclick="iiotFilterStatus('warning')"><div class="kpi-l">Warnings</div><div class="kpi-v" id="iiot-kv-warn" style="color:var(--amber)">5</div><div class="kpi-s">Click to view warnings</div></div>
+  <div class="kpi" style="cursor:pointer" onclick="iiotShowTab('plc')"><div class="kpi-l">PLCs Connected</div><div class="kpi-v" id="iiot-kv-plc">32</div><div class="kpi-s">OPC-UA · Click to view</div></div>
   <div class="kpi"><div class="kpi-l">Data Rate</div><div class="kpi-v">720/s</div><div class="kpi-s">Readings per second</div></div>
-  <div class="kpi"><div class="kpi-l">OPC-UA Nodes</div><div class="kpi-v">32</div><div class="kpi-s">PLCs connected</div></div>
-  <div class="kpi"><div class="kpi-l">ML Accuracy</div><div class="kpi-v" style="color:var(--ocean)">94.7%</div><div class="kpi-s">Ensemble model</div></div>
+  <div class="kpi" style="cursor:pointer" onclick="nav('pred')"><div class="kpi-l">ML Accuracy</div><div class="kpi-v" style="color:var(--ocean)">94.7%</div><div class="kpi-s">View predictions →</div></div>
 </div>
 
-<!-- Sub-tabs -->
 <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
-  <button class="scm-tab active" id="iiot-tab-grid"    onclick="iiotTab('grid')">Live Sensor Grid</button>
-  <button class="scm-tab"        id="iiot-tab-alerts"  onclick="iiotTab('alerts')">Active Alerts</button>
-  <button class="scm-tab"        id="iiot-tab-history" onclick="iiotTab('history')">Reading History</button>
-  <button class="scm-tab"        id="iiot-tab-map"     onclick="iiotTab('map')">Plant Map</button>
+  <button class="scm-tab active" id="iiot-tab-sensors" onclick="iiotShowTab('sensors')">Sensor Grid</button>
+  <button class="scm-tab"        id="iiot-tab-plc"     onclick="iiotShowTab('plc')">PLCs &amp; Connections</button>
+  <button class="scm-tab"        id="iiot-tab-map"     onclick="iiotShowTab('map')">Plant Map</button>
+  <button class="scm-tab"        id="iiot-tab-alerts"  onclick="iiotShowTab('alerts')">Active Alerts</button>
 </div>
 
-<!-- ── LIVE SENSOR GRID ──────────────────────────────────────── -->
-<div class="iiot-panel" id="iiot-panel-grid">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-    <div style="display:flex;gap:8px">
-      <select id="iiot-line-filter" onchange="renderSensorGrid()" style="padding:5px 10px;background:#112645;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text2);font-size:12px">
+<!-- ── SENSOR GRID ────────────────────────────────────────────── -->
+<div class="iiot-panel" id="iiot-panel-sensors">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <select id="iiot-f-line" onchange="iiotRenderGrid()" style="padding:5px 10px;background:#112645;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#e2e8f0;font-size:12px">
         <option value="">All Lines</option>
-        <option value="Line 1">Line 1 — Engine Mounts</option>
-        <option value="Line 2">Line 2 — Brake Calipers</option>
-        <option value="Line 3">Line 3 — Turbochargers</option>
-        <option value="Line 4">Line 4 — Fuel Systems</option>
-        <option value="Line 5">Line 5 — Aerospace</option>
-        <option value="Line 6">Line 6 — EV Battery</option>
-        <option value="Press">Press Shop</option>
-        <option value="Weld">Weld Cells</option>
+        <option>Line 1</option><option>Line 2</option><option>Line 3</option>
+        <option>Line 4</option><option>Line 5</option><option>Line 6</option>
+        <option>Press</option><option>Weld</option><option>Test</option>
       </select>
-      <select id="iiot-type-filter" onchange="renderSensorGrid()" style="padding:5px 10px;background:#112645;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text2);font-size:12px">
-        <option value="">All Types</option>
-        <option value="temperature">Temperature</option>
-        <option value="vibration">Vibration</option>
-        <option value="pressure">Pressure</option>
-        <option value="current">Current / Power</option>
-        <option value="speed">Speed / RPM</option>
-        <option value="quality">Quality / Vision</option>
-      </select>
-      <select id="iiot-status-filter" onchange="renderSensorGrid()" style="padding:5px 10px;background:#112645;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text2);font-size:12px">
+      <select id="iiot-f-status" onchange="iiotRenderGrid()" style="padding:5px 10px;background:#112645;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#e2e8f0;font-size:12px">
         <option value="">All Status</option>
         <option value="critical">Critical</option>
         <option value="warning">Warning</option>
         <option value="normal">Normal</option>
       </select>
+      <input id="iiot-f-search" oninput="iiotRenderGrid()" placeholder="Search sensor…" style="padding:5px 10px;background:#112645;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#e2e8f0;font-size:12px;width:160px">
     </div>
     <div style="display:flex;align-items:center;gap:8px">
-      <div id="iiot-live-dot" style="width:8px;height:8px;border-radius:50%;background:#22c55e;animation:pulse 1s infinite"></div>
-      <span id="iiot-live-label" style="font-size:11px;color:#22c55e">LIVE — updating every 2s</span>
-      <button onclick="fetchSensorsLive()" style="padding:4px 10px;background:rgba(0,194,224,.1);border:1px solid rgba(0,194,224,.3);border-radius:5px;color:#00c2e0;font-size:11px;cursor:pointer">↻ Refresh</button>
+      <div style="width:8px;height:8px;border-radius:50%;background:#22c55e;animation:pulse 1.5s infinite"></div>
+      <span id="iiot-live-label" style="font-size:11px;color:#22c55e">LIVE · 3s refresh</span>
     </div>
   </div>
-  <div id="sensor-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">
-    <div style="color:var(--text3);font-size:12px;padding:20px">Loading sensors...</div>
+  <div id="iiot-sensor-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px">
+    <div style="color:var(--text3);font-size:12px;padding:20px">Loading sensors…</div>
   </div>
 </div>
 
-<!-- ── ACTIVE ALERTS ─────────────────────────────────────────── -->
-<div class="iiot-panel" id="iiot-panel-alerts" style="display:none">
-  <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:12px">Active IIoT Alerts</div>
-  <div id="iiot-alerts-list" style="display:flex;flex-direction:column;gap:8px">
-    <div style="color:var(--text3);font-size:12px">Loading alerts...</div>
-  </div>
-</div>
-
-<!-- ── READING HISTORY ────────────────────────────────────────── -->
-<div class="iiot-panel" id="iiot-panel-history" style="display:none">
-  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
-    <select id="iiot-history-sensor" style="flex:1;min-width:200px;padding:6px 10px;background:#112645;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#e2e8f0;font-size:12px">
-      <option value="">Select sensor to view history...</option>
-    </select>
-    <select id="iiot-history-range" style="padding:6px 10px;background:#112645;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#e2e8f0;font-size:12px">
-      <option value="1h">Last 1 hour</option>
-      <option value="4h">Last 4 hours</option>
-      <option value="8h" selected>Last 8 hours</option>
-      <option value="24h">Last 24 hours</option>
-    </select>
-    <button onclick="loadSensorHistory()" style="padding:6px 14px;background:#00c2e0;border:none;border-radius:6px;color:#0a1628;font-size:12px;font-weight:700;cursor:pointer">Load History</button>
-  </div>
-  <div id="iiot-history-content" style="color:var(--text3);font-size:12px;padding:20px;text-align:center">
-    Select a sensor above to view its reading history.
+<!-- ── PLCs & CONNECTIONS ─────────────────────────────────────── -->
+<div class="iiot-panel" id="iiot-panel-plc" style="display:none">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div>
+      <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:12px">Connected PLCs — OPC-UA</div>
+      <div id="iiot-plc-list" style="display:flex;flex-direction:column;gap:6px">
+        <div style="color:var(--text3);font-size:12px">Loading…</div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card">
+        <div class="ct">Protocol Summary</div>
+        <div style="display:flex;flex-direction:column;gap:6px;font-size:11px">
+          <div style="display:flex;justify-content:space-between;padding:6px 8px;background:#112645;border-radius:5px">
+            <span style="color:#9ca3af">OPC-UA v1.04</span>
+            <span style="color:#22c55e;font-weight:700">26 PLCs · 10 Hz</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:6px 8px;background:#112645;border-radius:5px">
+            <span style="color:#9ca3af">MQTT v5</span>
+            <span style="color:#22c55e;font-weight:700">6 edge devices · 5 Hz</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:6px 8px;background:#112645;border-radius:5px">
+            <span style="color:#9ca3af">MTConnect</span>
+            <span style="color:#22c55e;font-weight:700">CNC machines · 1 Hz</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:6px 8px;background:#112645;border-radius:5px">
+            <span style="color:#9ca3af">WebSocket stream</span>
+            <span style="color:#22c55e;font-weight:700">Browser push · live</span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ct">Network Health</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div style="background:#112645;border-radius:6px;padding:8px;text-align:center"><div style="font-size:9px;color:#6b7280">UPTIME</div><div style="font-size:18px;font-weight:800;color:#22c55e">99.94%</div></div>
+          <div style="background:#112645;border-radius:6px;padding:8px;text-align:center"><div style="font-size:9px;color:#6b7280">AVG LATENCY</div><div style="font-size:18px;font-weight:800;color:#22c55e">12ms</div></div>
+          <div style="background:#112645;border-radius:6px;padding:8px;text-align:center"><div style="font-size:9px;color:#6b7280">PACKETS/S</div><div style="font-size:18px;font-weight:800;color:#e2e8f0" id="iiot-pps">720</div></div>
+          <div style="background:#112645;border-radius:6px;padding:8px;text-align:center"><div style="font-size:9px;color:#6b7280">DROP RATE</div><div style="font-size:18px;font-weight:800;color:#22c55e">0.06%</div></div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
 <!-- ── PLANT MAP ───────────────────────────────────────────────── -->
 <div class="iiot-panel" id="iiot-panel-map" style="display:none">
-  <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:12px">Plant Sensor Coverage Map</div>
-  <div style="background:#0a1628;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:20px;position:relative;overflow:hidden" id="iiot-plant-map">
-    <!-- SVG plant floor map with sensor overlays -->
-    <svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">
-      <!-- Background -->
-      <rect width="800" height="400" fill="#0a1628"/>
-      <!-- Plant boundary -->
-      <rect x="20" y="20" width="760" height="360" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="2" rx="6"/>
-      <!-- Production lines -->
-      <rect x="40" y="40" width="110" height="70" fill="rgba(0,194,224,.08)" stroke="rgba(0,194,224,.3)" stroke-width="1" rx="4"/>
-      <text x="95" y="65" font-size="9" fill="#00c2e0" text-anchor="middle">Line 1</text>
-      <text x="95" y="78" font-size="8" fill="#6b7280" text-anchor="middle">Engine Mounts</text>
-      <rect x="165" y="40" width="110" height="70" fill="rgba(0,194,224,.08)" stroke="rgba(0,194,224,.3)" stroke-width="1" rx="4"/>
-      <text x="220" y="65" font-size="9" fill="#00c2e0" text-anchor="middle">Line 2</text>
-      <text x="220" y="78" font-size="8" fill="#6b7280" text-anchor="middle">Brake Calipers</text>
-      <rect x="290" y="40" width="110" height="70" fill="rgba(239,68,68,.08)" stroke="rgba(239,68,68,.4)" stroke-width="1" rx="4"/>
-      <text x="345" y="65" font-size="9" fill="#ef4444" text-anchor="middle">Line 3</text>
-      <text x="345" y="78" font-size="8" fill="#6b7280" text-anchor="middle">Turbochargers</text>
-      <rect x="415" y="40" width="110" height="70" fill="rgba(245,158,11,.06)" stroke="rgba(245,158,11,.3)" stroke-width="1" rx="4"/>
-      <text x="470" y="65" font-size="9" fill="#f59e0b" text-anchor="middle">Line 4</text>
-      <text x="470" y="78" font-size="8" fill="#6b7280" text-anchor="middle">Fuel Systems</text>
-      <rect x="540" y="40" width="110" height="70" fill="rgba(0,194,224,.08)" stroke="rgba(0,194,224,.3)" stroke-width="1" rx="4"/>
-      <text x="595" y="65" font-size="9" fill="#00c2e0" text-anchor="middle">Line 5</text>
-      <text x="595" y="78" font-size="8" fill="#6b7280" text-anchor="middle">Aerospace</text>
-      <rect x="665" y="40" width="110" height="70" fill="rgba(0,194,224,.08)" stroke="rgba(0,194,224,.3)" stroke-width="1" rx="4"/>
-      <text x="720" y="65" font-size="9" fill="#00c2e0" text-anchor="middle">Line 6</text>
-      <text x="720" y="78" font-size="8" fill="#6b7280" text-anchor="middle">EV Battery</text>
-      <!-- Press shop -->
-      <rect x="40" y="140" width="180" height="80" fill="rgba(139,92,246,.06)" stroke="rgba(139,92,246,.25)" stroke-width="1" rx="4"/>
-      <text x="130" y="175" font-size="9" fill="#8b5cf6" text-anchor="middle">Press Shop</text>
-      <!-- Weld cells -->
-      <rect x="240" y="140" width="180" height="80" fill="rgba(245,158,11,.06)" stroke="rgba(245,158,11,.25)" stroke-width="1" rx="4"/>
-      <text x="330" y="175" font-size="9" fill="#f59e0b" text-anchor="middle">Weld Cells</text>
-      <!-- Test cell -->
-      <rect x="440" y="140" width="150" height="80" fill="rgba(34,197,94,.06)" stroke="rgba(34,197,94,.25)" stroke-width="1" rx="4"/>
-      <text x="515" y="175" font-size="9" fill="#22c55e" text-anchor="middle">Test Cell</text>
-      <!-- CMM / Quality -->
-      <rect x="610" y="140" width="165" height="80" fill="rgba(0,194,224,.06)" stroke="rgba(0,194,224,.2)" stroke-width="1" rx="4"/>
-      <text x="692" y="175" font-size="9" fill="#00c2e0" text-anchor="middle">CMM / Quality</text>
-      <!-- Sensor dots - critical -->
-      <circle cx="345" cy="55" r="6" fill="#ef4444" opacity="0.9"><animate attributeName="r" values="5;8;5" dur="1s" repeatCount="indefinite"/></circle>
-      <circle cx="470" cy="75" r="5" fill="#f59e0b" opacity="0.8"><animate attributeName="opacity" values="1;0.4;1" dur="1.5s" repeatCount="indefinite"/></circle>
-      <!-- Normal sensors -->
-      <circle cx="95" cy="55" r="4" fill="#22c55e" opacity="0.8"/>
-      <circle cx="95" cy="90" r="4" fill="#22c55e" opacity="0.8"/>
-      <circle cx="220" cy="55" r="4" fill="#22c55e" opacity="0.8"/>
-      <circle cx="220" cy="90" r="4" fill="#22c55e" opacity="0.8"/>
-      <circle cx="345" cy="90" r="4" fill="#f59e0b" opacity="0.8"/>
-      <circle cx="595" cy="55" r="4" fill="#22c55e" opacity="0.8"/>
-      <circle cx="595" cy="90" r="4" fill="#22c55e" opacity="0.8"/>
-      <circle cx="720" cy="55" r="4" fill="#22c55e" opacity="0.8"/>
-      <circle cx="720" cy="90" r="4" fill="#22c55e" opacity="0.8"/>
-      <circle cx="130" cy="170" r="4" fill="#22c55e" opacity="0.8"/>
-      <circle cx="130" cy="195" r="4" fill="#22c55e" opacity="0.8"/>
-      <circle cx="330" cy="170" r="4" fill="#22c55e" opacity="0.8"/>
-      <circle cx="515" cy="170" r="4" fill="#22c55e" opacity="0.8"/>
-      <circle cx="692" cy="170" r="4" fill="#22c55e" opacity="0.8"/>
-      <!-- Legend -->
-      <circle cx="40" cy="305" r="5" fill="#ef4444"/>
-      <text x="52" y="309" font-size="9" fill="#9ca3af">Critical</text>
-      <circle cx="100" cy="305" r="5" fill="#f59e0b"/>
-      <text x="112" y="309" font-size="9" fill="#9ca3af">Warning</text>
-      <circle cx="165" cy="305" r="5" fill="#22c55e"/>
-      <text x="177" y="309" font-size="9" fill="#9ca3af">Normal</text>
-      <text x="40" y="330" font-size="8" fill="#4b5563">Total sensors: 72 · Click any dot to view sensor detail · Last updated: live</text>
-    </svg>
-    <!-- Legend overlay -->
-    <div style="margin-top:12px;display:flex;gap:16px;flex-wrap:wrap">
-      <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#9ca3af">
-        <div style="width:8px;height:8px;border-radius:50%;background:#ef4444"></div> Critical (RUL &lt;48h or threshold breach)
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#9ca3af">
-        <div style="width:8px;height:8px;border-radius:50%;background:#f59e0b"></div> Warning (approaching threshold)
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#9ca3af">
-        <div style="width:8px;height:8px;border-radius:50%;background:#22c55e"></div> Normal
-      </div>
-    </div>
+  <div id="iiot-map-container">
+    <div style="color:var(--text3);font-size:12px;padding:20px">Loading map…</div>
   </div>
+</div>
+
+<!-- ── ACTIVE ALERTS ─────────────────────────────────────────── -->
+<div class="iiot-panel" id="iiot-panel-alerts" style="display:none">
+  <div id="iiot-alerts-list" style="display:flex;flex-direction:column;gap:8px">
+    <div style="color:var(--text3);font-size:12px;padding:20px">Loading alerts…</div>
+  </div>
+</div>
+
+<!-- ── SENSOR DETAIL DRAWER ───────────────────────────────────── -->
+<div id="iiot-drawer" style="display:none;position:fixed;right:0;top:0;width:360px;height:100vh;background:#0d1f3c;border-left:1px solid rgba(0,194,224,.25);z-index:1000;overflow-y:auto;padding:20px;box-shadow:-8px 0 32px rgba(0,0,0,.5)">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div style="font-size:14px;font-weight:700;color:#e2e8f0" id="drawer-title">Sensor Detail</div>
+    <button onclick="document.getElementById('iiot-drawer').style.display='none'" style="background:none;border:none;color:#6b7280;font-size:20px;cursor:pointer;line-height:1">×</button>
+  </div>
+  <div id="drawer-content"></div>
 </div>
 
 </div>
@@ -11368,9 +11310,16 @@ async function fetchSensorsLive(silent) {
   t('iiot-kv-crit',    crit);
   t('iiot-kv-warn',    warn);
 
-  // Only re-render if on grid tab and not silent
+  // Smart update: if cards exist, update values in-place; else full render
   var gridPanel = document.getElementById('iiot-panel-grid');
-  if (gridPanel && gridPanel.style.display !== 'none') renderSensorGrid();
+  if (gridPanel && gridPanel.style.display !== 'none') {
+    var firstCard = document.getElementById('sc-' + (_iiotSensors[0]||{}).id);
+    if (firstCard) {
+      updateSensorCardsInPlace();
+    } else {
+      renderSensorGrid();
+    }
+  }
 }
 
 function renderSensorGrid() {
@@ -11420,7 +11369,7 @@ function renderSensorGrid() {
     var pct    = range[1] > range[0] ? ((s.value - range[0])/(range[1]-range[0])*100).toFixed(0) : 50;
     pct = Math.max(0, Math.min(100, pct));
 
-    return '<div style="background:'+bg+';border:1px solid '+bord+';border-radius:9px;padding:12px;position:relative">' +
+    return '<div id="sc-'+s.id+'" style="background:'+bg+';border:1px solid '+bord+';border-radius:9px;padding:12px;position:relative;transition:all 0.4s ease">' +
       (s.status!=='normal' ? '<div style="position:absolute;top:8px;right:8px;width:7px;height:7px;border-radius:50%;background:'+col+';animation:pulse 1s infinite"></div>' : '') +
       '<div style="font-size:10px;font-weight:700;color:#6b7280;margin-bottom:3px;font-family:monospace">'+s.id+'</div>' +
       '<div style="font-size:12px;font-weight:700;color:#e2e8f0;margin-bottom:2px">'+s.name+'</div>' +
@@ -11579,6 +11528,804 @@ function renderSensorHistoryChart(el, sensor, points) {
     if (id==='iiot') loadIIoTPage();
   };
   window.nav._iiotPatched = true;
+})();
+</script>
+
+<style>
+@keyframes sensorPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(0,194,224,0.4); }
+  50%  { box-shadow: 0 0 0 6px rgba(0,194,224,0); }
+  100% { box-shadow: 0 0 0 0 rgba(0,194,224,0); }
+}
+.sensor-card-updated {
+  animation: sensorPulse 0.6s ease;
+}
+</style>
+
+<script>
+// ── IN-PLACE SENSOR CARD UPDATES (no flicker) ─────────────────
+function updateSensorCardsInPlace() {
+  var sensors = _iiotSensors.length ? _iiotSensors : SENSOR_FALLBACK;
+  var STATUS_COLORS = { critical:'#ef4444', warning:'#f59e0b', normal:'#22c55e' };
+
+  sensors.forEach(function(s) {
+    var card = document.getElementById('sc-' + s.id);
+    if (!card) return;
+
+    var col   = STATUS_COLORS[s.status] || '#22c55e';
+    var range = s.range || [0, 100];
+    var pct   = range[1] > range[0]
+      ? Math.max(0, Math.min(100, ((s.value - range[0]) / (range[1] - range[0]) * 100)))
+      : 50;
+
+    // Update value display
+    var valEl = card.querySelector('.sensor-value');
+    if (valEl) {
+      var newVal = typeof s.value === 'number'
+        ? s.value.toFixed(s.value > 10 ? 1 : 2) + ' ' + (s.unit || '')
+        : s.value;
+      if (valEl.dataset.lastVal !== newVal) {
+        valEl.textContent = newVal;
+        valEl.style.color  = col;
+        valEl.dataset.lastVal = newVal;
+        card.classList.remove('sensor-card-updated');
+        void card.offsetWidth; // force reflow
+        card.classList.add('sensor-card-updated');
+      }
+    }
+
+    // Update fill bar
+    var bar = card.querySelector('.sensor-bar-fill');
+    if (bar) {
+      bar.style.width      = pct.toFixed(0) + '%';
+      bar.style.background = col;
+    }
+
+    // Update border/background for status change
+    var STATUS_BG     = { critical:'rgba(239,68,68,.08)', warning:'rgba(245,158,11,.06)', normal:'rgba(34,197,94,.04)' };
+    var STATUS_BORDER = { critical:'rgba(239,68,68,.35)', warning:'rgba(245,158,11,.3)', normal:'rgba(255,255,255,.08)' };
+    card.style.background   = STATUS_BG[s.status]     || 'rgba(255,255,255,.03)';
+    card.style.borderColor  = STATUS_BORDER[s.status] || 'rgba(255,255,255,.08)';
+
+    // Update pulse dot
+    var dot = card.querySelector('.sensor-status-dot');
+    if (dot) {
+      dot.style.background = col;
+      dot.style.display    = s.status !== 'normal' ? 'block' : 'none';
+    }
+  });
+}
+
+// ── REBUILD renderSensorGrid TO USE CLASSNAMES for in-place update ──
+var _origRenderSensorGrid = window.renderSensorGrid;
+window.renderSensorGrid = function() {
+  var grid = document.getElementById('sensor-grid');
+  if (!grid) return;
+  var sensors    = _iiotSensors.length ? _iiotSensors : SENSOR_FALLBACK;
+  var lineFilter = document.getElementById('iiot-line-filter')?.value   || '';
+  var typeFilter = document.getElementById('iiot-type-filter')?.value   || '';
+  var statFilter = document.getElementById('iiot-status-filter')?.value || '';
+
+  var TYPE_MAP = {
+    temperature: ['Temp','temp'],
+    vibration:   ['Vibration','vibration','Amplitude'],
+    pressure:    ['Pressure','pressure','Force','force'],
+    current:     ['Current','Power','Load','current','Voltage','Feed Speed'],
+    speed:       ['Speed','RPM','rpm'],
+    quality:     ['Count','Result','Integrity','Factor','Offset','Particle'],
+  };
+
+  var filtered = sensors.filter(function(s) {
+    if (lineFilter && s.line !== lineFilter) return false;
+    if (statFilter && s.status !== statFilter) return false;
+    if (typeFilter) {
+      var keywords = TYPE_MAP[typeFilter] || [];
+      if (!keywords.some(function(kw){ return s.name.includes(kw); })) return false;
+    }
+    return true;
+  });
+
+  if (!filtered.length) {
+    grid.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:20px;grid-column:1/-1">No sensors match filter</div>';
+    return;
+  }
+
+  var STATUS_COLORS = { critical:'#ef4444', warning:'#f59e0b', normal:'#22c55e' };
+  var STATUS_BG     = { critical:'rgba(239,68,68,.08)', warning:'rgba(245,158,11,.06)', normal:'rgba(34,197,94,.04)' };
+  var STATUS_BORDER = { critical:'rgba(239,68,68,.35)', warning:'rgba(245,158,11,.3)', normal:'rgba(255,255,255,.08)' };
+
+  grid.innerHTML = filtered.map(function(s) {
+    var col   = STATUS_COLORS[s.status] || '#22c55e';
+    var bg    = STATUS_BG[s.status]     || 'rgba(255,255,255,.03)';
+    var bord  = STATUS_BORDER[s.status] || 'rgba(255,255,255,.08)';
+    var range = s.range || [0, 100];
+    var pct   = range[1] > range[0]
+      ? Math.max(0, Math.min(100, (s.value - range[0]) / (range[1] - range[0]) * 100)).toFixed(0)
+      : '50';
+    var dispVal = typeof s.value === 'number'
+      ? s.value.toFixed(s.value > 10 ? 1 : 2)
+      : s.value;
+
+    return '<div id="sc-' + s.id + '" style="background:' + bg + ';border:1px solid ' + bord + ';border-radius:9px;padding:12px;position:relative;transition:all 0.4s ease">' +
+      '<div class="sensor-status-dot" style="position:absolute;top:8px;right:8px;width:7px;height:7px;border-radius:50%;background:' + col + ';display:' + (s.status!=='normal'?'block':'none') + ';animation:pulse 1s infinite"></div>' +
+      '<div style="font-size:10px;font-weight:700;color:#6b7280;margin-bottom:3px;font-family:monospace">' + s.id + '</div>' +
+      '<div style="font-size:12px;font-weight:700;color:#e2e8f0;margin-bottom:2px">' + s.name + '</div>' +
+      '<div style="font-size:10px;color:#6b7280;margin-bottom:8px">' + s.machine + ' · ' + s.line + '</div>' +
+      '<div class="sensor-value" data-last-val="' + dispVal + ' ' + (s.unit||'') + '" style="font-size:22px;font-weight:800;color:' + col + ';font-family:monospace;margin-bottom:6px">' +
+        dispVal + ' <span style="font-size:12px;font-weight:400">' + (s.unit||'') + '</span>' +
+      '</div>' +
+      '<div style="height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;margin-bottom:6px">' +
+        '<div class="sensor-bar-fill" style="height:100%;width:' + pct + '%;background:' + col + ';border-radius:2px;transition:width 0.5s ease"></div>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:space-between;font-size:9px;color:#6b7280">' +
+        '<span>' + (s.protocol||'OPC-UA') + '</span>' +
+        '<span class="badge ' + (s.status==='critical'?'crit':s.status==='warning'?'warn':'ok') + '" style="font-size:8px">' + s.status.toUpperCase() + '</span>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+};
+
+// ── PLANT MAP: rebuild with proper visible styling + live sensor dots ──
+function renderPlantMap() {
+  var el = document.getElementById('iiot-plant-map');
+  if (!el) return;
+
+  var sensors = _iiotSensors.length ? _iiotSensors : SENSOR_FALLBACK;
+  var critCount = sensors.filter(function(s){ return s.status==='critical'; }).length;
+  var warnCount = sensors.filter(function(s){ return s.status==='warning'; }).length;
+
+  // Count by line for map overlay
+  var lineCounts = {};
+  sensors.forEach(function(s) {
+    if (!lineCounts[s.line]) lineCounts[s.line] = { total:0, crit:0, warn:0 };
+    lineCounts[s.line].total++;
+    if (s.status==='critical') lineCounts[s.line].crit++;
+    else if (s.status==='warning') lineCounts[s.line].warn++;
+  });
+
+  var AREAS = [
+    { key:'Line 1', x:40,  y:40,  w:110, h:80,  label:'Line 1',   sub:'Engine Mounts' },
+    { key:'Line 2', x:165, y:40,  w:110, h:80,  label:'Line 2',   sub:'Brake Calipers' },
+    { key:'Line 3', x:290, y:40,  w:110, h:80,  label:'Line 3',   sub:'Turbochargers' },
+    { key:'Line 4', x:415, y:40,  w:110, h:80,  label:'Line 4',   sub:'Fuel Systems' },
+    { key:'Line 5', x:540, y:40,  w:110, h:80,  label:'Line 5',   sub:'Aerospace' },
+    { key:'Line 6', x:665, y:40,  w:110, h:80,  label:'Line 6',   sub:'EV Battery' },
+    { key:'Press',  x:40,  y:145, w:180, h:80,  label:'Press',    sub:'Hydraulic Press' },
+    { key:'Weld',   x:240, y:145, w:180, h:80,  label:'Weld',     sub:'Weld Cells' },
+    { key:'Test',   x:440, y:145, w:160, h:80,  label:'Test',     sub:'Turbo Test Rig' },
+  ];
+
+  var areasSVG = AREAS.map(function(a) {
+    var lc  = lineCounts[a.key] || { total:0, crit:0, warn:0 };
+    var col = lc.crit > 0 ? '#ef4444' : lc.warn > 0 ? '#f59e0b' : '#22c55e';
+    var fillOpacity = lc.crit > 0 ? '0.12' : lc.warn > 0 ? '0.08' : '0.05';
+    var cx  = a.x + a.w/2;
+    var cy  = a.y + a.h/2;
+    return (
+      '<rect x="'+a.x+'" y="'+a.y+'" width="'+a.w+'" height="'+a.h+'" ' +
+        'fill="'+col+'" fill-opacity="'+fillOpacity+'" ' +
+        'stroke="'+col+'" stroke-opacity="0.4" stroke-width="1.5" rx="5" ' +
+        'style="cursor:pointer" onclick="iiotTab(\'grid\');document.getElementById(\'iiot-line-filter\').value=\''+a.key+'\';renderSensorGrid()"/>' +
+      '<text x="'+cx+'" y="'+(cy-10)+'" font-size="9" fill="'+col+'" text-anchor="middle" font-weight="700">'+a.label+'</text>' +
+      '<text x="'+cx+'" y="'+(cy+3)+'" font-size="8" fill="#9ca3af" text-anchor="middle">'+a.sub+'</text>' +
+      '<text x="'+cx+'" y="'+(cy+16)+'" font-size="8" fill="'+col+'" text-anchor="middle">' +
+        lc.total+' sensors' + (lc.crit?'  ⚠'+lc.crit+' CRIT':'') + (lc.warn?' ▲'+lc.warn:'') +
+      '</text>' +
+      // Sensor dot indicator
+      (lc.crit > 0
+        ? '<circle cx="'+(a.x+a.w-10)+'" cy="'+(a.y+10)+'" r="5" fill="#ef4444"><animate attributeName="r" values="4;7;4" dur="0.8s" repeatCount="indefinite"/></circle>'
+        : lc.warn > 0
+          ? '<circle cx="'+(a.x+a.w-10)+'" cy="'+(a.y+10)+'" r="4" fill="#f59e0b"><animate attributeName="opacity" values="1;0.3;1" dur="1.2s" repeatCount="indefinite"/></circle>'
+          : '<circle cx="'+(a.x+a.w-10)+'" cy="'+(a.y+10)+'" r="4" fill="#22c55e"/>'
+      )
+    );
+  }).join('');
+
+  el.innerHTML =
+    '<div style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">' +
+      '<div style="font-size:12px;font-weight:600;color:#e2e8f0">Plant Sensor Coverage — click any area to filter that line</div>' +
+      '<div style="display:flex;gap:10px;font-size:10px">' +
+        '<span style="display:flex;align-items:center;gap:4px;color:#ef4444"><svg width="10" height="10"><circle cx="5" cy="5" r="4" fill="#ef4444"/></svg>Critical</span>' +
+        '<span style="display:flex;align-items:center;gap:4px;color:#f59e0b"><svg width="10" height="10"><circle cx="5" cy="5" r="4" fill="#f59e0b"/></svg>Warning</span>' +
+        '<span style="display:flex;align-items:center;gap:4px;color:#22c55e"><svg width="10" height="10"><circle cx="5" cy="5" r="4" fill="#22c55e"/></svg>Normal</span>' +
+      '</div>' +
+    '</div>' +
+    '<svg viewBox="0 0 800 250" xmlns="http://www.w3.org/2000/svg" style="width:100%;background:#071527;border-radius:8px;border:1px solid rgba(0,194,224,.15)">' +
+      '<rect width="800" height="250" fill="#071527"/>' +
+      '<rect x="15" y="15" width="770" height="220" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="1.5" rx="4"/>' +
+      areasSVG +
+      // Floor labels
+      '<text x="400" y="240" font-size="8" fill="#374151" text-anchor="middle">Corverxis Technologies Manufacturing Plant · ' + sensors.length + ' IIoT sensors active · ' + critCount + ' critical · ' + warnCount + ' warning</text>' +
+    '</svg>' +
+    '<div style="margin-top:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px">' +
+      AREAS.map(function(a) {
+        var lc  = lineCounts[a.key] || { total:0, crit:0, warn:0 };
+        var col = lc.crit>0?'#ef4444':lc.warn>0?'#f59e0b':'#22c55e';
+        return '<div onclick="iiotTab(\'grid\');document.getElementById(\'iiot-line-filter\').value=\''+a.key+'\';renderSensorGrid()" ' +
+          'style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">' +
+          '<span style="font-size:11px;color:#e2e8f0">'+a.label+'</span>' +
+          '<span style="font-size:10px;color:'+col+';font-weight:700">'+lc.total+' sensors</span>' +
+        '</div>';
+      }).join('') +
+    '</div>';
+}
+
+// Patch iiotTab to call renderPlantMap when switching to map
+var _origIiotTab = window.iiotTab;
+window.iiotTab = function(name) {
+  document.querySelectorAll('.scm-tab[id^="iiot-tab-"]').forEach(function(t){
+    t.classList.toggle('active', t.id === 'iiot-tab-' + name);
+  });
+  document.querySelectorAll('.iiot-panel').forEach(function(p){
+    p.style.display = p.id === 'iiot-panel-' + name ? 'block' : 'none';
+  });
+  if (name === 'grid')    renderSensorGrid();
+  if (name === 'alerts')  renderIIoTAlerts();
+  if (name === 'history') populateSensorHistorySelect();
+  if (name === 'map')     renderPlantMap();
+};
+
+// Also call renderPlantMap on first iiot load
+var _origLoadIIoTPage = window.loadIIoTPage;
+window.loadIIoTPage = function() {
+  if (_iiotInitDone) return;
+  _iiotInitDone = true;
+  fetchSensorsLive();
+  _iiotTimer = setInterval(function(){
+    fetchSensorsLive(true);
+  }, 3000);
+};
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+//  IIoT — complete reactive implementation
+// ══════════════════════════════════════════════════════════════
+(function(){
+
+// ── SENSOR DATASET (72 sensors, 9 locations) ──────────────────
+var SENSORS = [];
+(function buildSensors(){
+  var LOCS = [
+    { line:'Line 1', machine:'DMG CTX 510',        plc:'PLC-L1-01', sensors:[
+      {n:'Spindle Temp',       u:'°C',    v:54.2,  w:80,  c:88,  r:[40,95],  hi:true},
+      {n:'Spindle Vibration',  u:'mm/s',  v:1.8,   w:6,   c:9,   r:[0,12],   hi:true},
+      {n:'Coolant Pressure',   u:'bar',   v:4.8,   w:3.5, c:2.5, r:[2,6],    hi:false},
+      {n:'Servo Current X',    u:'A',     v:5.1,   w:8.5, c:10,  r:[0,12],   hi:true},
+      {n:'Part Count',         u:'pcs',   v:312,   w:0,   c:0,   r:[0,500],  hi:false},
+      {n:'Scrap Count',        u:'pcs',   v:1,     w:3,   c:8,   r:[0,20],   hi:true},
+      {n:'Cycle Time',         u:'s',     v:22.4,  w:38,  c:50,  r:[10,60],  hi:true},
+      {n:'Coolant Temp',       u:'°C',    v:31.8,  w:42,  c:50,  r:[20,55],  hi:true},
+    ]},
+    { line:'Line 2', machine:'Mazak QT-350',        plc:'PLC-L2-01', sensors:[
+      {n:'Spindle Temp',       u:'°C',    v:56.4,  w:80,  c:88,  r:[40,95],  hi:true},
+      {n:'Bearing Vibration',  u:'mm/s',  v:8.7,   w:6,   c:9,   r:[0,12],   hi:true,  alarm:true},
+      {n:'Chuck Pressure',     u:'bar',   v:64,    w:50,  c:40,  r:[30,80],  hi:false},
+      {n:'Servo Current X',    u:'A',     v:5.2,   w:8.5, c:10,  r:[0,12],   hi:true},
+      {n:'Coolant Flow',       u:'L/min', v:28,    w:18,  c:12,  r:[8,35],   hi:false},
+      {n:'Part Count',         u:'pcs',   v:284,   w:0,   c:0,   r:[0,500],  hi:false},
+      {n:'Scrap Count',        u:'pcs',   v:2,     w:3,   c:8,   r:[0,20],   hi:true},
+      {n:'Cycle Time',         u:'s',     v:24.1,  w:38,  c:50,  r:[10,60],  hi:true},
+    ]},
+    { line:'Line 3', machine:'FANUC Robodrill',     plc:'PLC-L3-01', sensors:[
+      {n:'Spindle Temp',       u:'°C',    v:87.4,  w:80,  c:88,  r:[40,95],  hi:true,  alarm:true},
+      {n:'Vibration Z',        u:'g',     v:0.42,  w:1.5, c:2.5, r:[0,3],    hi:true},
+      {n:'Tool Offset',        u:'mm',    v:0.038, w:0.04,c:0.06,r:[0,0.08], hi:true,  alarm:true},
+      {n:'Servo Load A',       u:'%',     v:61,    w:85,  c:95,  r:[0,100],  hi:true},
+      {n:'Coolant Temp',       u:'°C',    v:34.2,  w:42,  c:50,  r:[20,55],  hi:true},
+      {n:'Alarm Count',        u:'',      v:2,     w:2,   c:5,   r:[0,10],   hi:true},
+      {n:'Part Count',         u:'pcs',   v:142,   w:0,   c:0,   r:[0,500],  hi:false},
+      {n:'Scrap Count',        u:'pcs',   v:4,     w:3,   c:8,   r:[0,20],   hi:true,  alarm:true},
+    ]},
+    { line:'Line 4', machine:'Haas VF-4',           plc:'PLC-L4-01', sensors:[
+      {n:'Spindle Temp',       u:'°C',    v:58.1,  w:80,  c:88,  r:[40,95],  hi:true},
+      {n:'Vibration X',        u:'g',     v:0.31,  w:1.5, c:2.5, r:[0,3],    hi:true},
+      {n:'Hydraulic Pressure', u:'bar',   v:184,   w:160, c:140, r:[120,200],hi:false},
+      {n:'Servo Current Y',    u:'A',     v:4.8,   w:8.5, c:10,  r:[0,12],   hi:true},
+      {n:'Air Pressure',       u:'bar',   v:6.1,   w:5.5, c:4.8, r:[4,8],    hi:false},
+      {n:'Part Count',         u:'pcs',   v:198,   w:0,   c:0,   r:[0,500],  hi:false},
+      {n:'Cycle Time',         u:'s',     v:31.4,  w:38,  c:50,  r:[10,60],  hi:true},
+      {n:'Scrap Count',        u:'pcs',   v:0,     w:3,   c:8,   r:[0,20],   hi:true},
+    ]},
+    { line:'Line 5', machine:'Hermle C 400',        plc:'PLC-L5-01', sensors:[
+      {n:'Spindle Temp',       u:'°C',    v:84.2,  w:80,  c:88,  r:[40,95],  hi:true,  alarm:true},
+      {n:'Vibration Y',        u:'g',     v:0.35,  w:1.5, c:2.5, r:[0,3],    hi:true},
+      {n:'Coolant Pressure',   u:'bar',   v:4.6,   w:3.5, c:2.5, r:[2,6],    hi:false},
+      {n:'Servo Load B',       u:'%',     v:58,    w:85,  c:95,  r:[0,100],  hi:true},
+      {n:'Pallet Temp',        u:'°C',    v:31.2,  w:45,  c:55,  r:[20,65],  hi:true},
+      {n:'Part Count',         u:'pcs',   v:88,    w:0,   c:0,   r:[0,200],  hi:false},
+      {n:'Scrap Count',        u:'pcs',   v:1,     w:3,   c:8,   r:[0,20],   hi:true},
+      {n:'CMM Result',         u:'',      v:1,     w:0,   c:0,   r:[0,1],    hi:false},
+    ]},
+    { line:'Line 6', machine:'Brother Speedio',     plc:'PLC-L6-01', sensors:[
+      {n:'Spindle Temp',       u:'°C',    v:48.8,  w:80,  c:88,  r:[40,95],  hi:true},
+      {n:'Vibration X',        u:'g',     v:0.28,  w:1.5, c:2.5, r:[0,3],    hi:true},
+      {n:'Coolant Level',      u:'%',     v:77,    w:30,  c:15,  r:[0,100],  hi:false},
+      {n:'Servo Current Z',    u:'A',     v:5.6,   w:8.5, c:10,  r:[0,12],   hi:true},
+      {n:'Battery Cell Temp',  u:'°C',    v:27.8,  w:38,  c:45,  r:[15,55],  hi:true},
+      {n:'Part Count',         u:'pcs',   v:8,     w:0,   c:0,   r:[0,50],   hi:false},
+      {n:'Cycle Time',         u:'s',     v:18.2,  w:38,  c:50,  r:[10,60],  hi:true},
+      {n:'Scrap Count',        u:'pcs',   v:0,     w:3,   c:8,   r:[0,20],   hi:true},
+    ]},
+    { line:'Press', machine:'Hydraulic Press 80T',  plc:'PLC-PR-01', sensors:[
+      {n:'Ram Force',          u:'T',     v:62,    w:75,  c:82,  r:[40,85],  hi:true},
+      {n:'Seal Integrity',     u:'%',     v:72,    w:75,  c:60,  r:[50,100], hi:false, alarm:true},
+      {n:'Hydraulic Temp',     u:'°C',    v:52,    w:68,  c:78,  r:[40,85],  hi:true},
+      {n:'Oil Particle Count', u:'ppm',   v:145,   w:150, c:220, r:[0,300],  hi:true},
+      {n:'Die Temp',           u:'°C',    v:31,    w:42,  c:55,  r:[20,60],  hi:true},
+      {n:'Pressure Peak',      u:'bar',   v:178,   w:195, c:210, r:[150,220],hi:true},
+      {n:'Cycle Count',        u:'',      v:3421,  w:0,   c:0,   r:[0,5000], hi:false},
+      {n:'Return Speed',       u:'mm/s',  v:145,   w:200, c:250, r:[80,260], hi:true},
+    ]},
+    { line:'Weld', machine:'FANUC Arc Welder',       plc:'PLC-WD-01', sensors:[
+      {n:'Wire Feed Speed',    u:'m/min', v:8.4,   w:0,   c:0,   r:[4,15],   hi:false},
+      {n:'Arc Voltage',        u:'V',     v:22.4,  w:0,   c:0,   r:[18,28],  hi:false},
+      {n:'Weld Current',       u:'A',     v:185,   w:0,   c:0,   r:[120,250],hi:false},
+      {n:'Shielding Gas Flow', u:'L/min', v:18,    w:14,  c:10,  r:[8,25],   hi:false},
+      {n:'Tip Temp',           u:'°C',    v:185,   w:280, c:340, r:[100,380],hi:true},
+      {n:'Cycle Count',        u:'',      v:1241,  w:0,   c:0,   r:[0,5000], hi:false},
+      {n:'Reject Count',       u:'pcs',   v:0,     w:3,   c:8,   r:[0,20],   hi:true},
+      {n:'Power Factor',       u:'',      v:0.94,  w:0.88,c:0.82,r:[0.7,1],  hi:false},
+    ]},
+    { line:'Test',  machine:'Turbo Test Rig',        plc:'PLC-TC-01', sensors:[
+      {n:'Turbine Speed',      u:'rpm',   v:42800, w:0,   c:0,   r:[0,60000],hi:false},
+      {n:'Inlet Temp',         u:'°C',    v:28,    w:0,   c:0,   r:[15,45],  hi:false},
+      {n:'Outlet Pressure',    u:'bar',   v:2.84,  w:0,   c:0,   r:[1,4],    hi:false},
+      {n:'Vibration Amp',      u:'g',     v:0.42,  w:1.8, c:2.8, r:[0,3.5],  hi:true},
+      {n:'Oil Pressure',       u:'bar',   v:4.2,   w:3.0, c:2.2, r:[1.5,6],  hi:false},
+      {n:'Test Cycles',        u:'',      v:4821,  w:0,   c:0,   r:[0,10000],hi:false},
+      {n:'Pass Count',         u:'',      v:4738,  w:0,   c:0,   r:[0,10000],hi:false},
+      {n:'Fail Count',         u:'',      v:1,     w:5,   c:20,  r:[0,50],   hi:true},
+    ]},
+  ];
+
+  var id = 1;
+  LOCS.forEach(function(loc){
+    loc.sensors.forEach(function(s){
+      // Compute status
+      var st = 'normal';
+      if (s.c > 0 || s.w > 0) {
+        if (s.hi) {
+          if (s.c > 0 && s.v >= s.c) st = 'critical';
+          else if (s.w > 0 && s.v >= s.w) st = 'warning';
+        } else {
+          if (s.c > 0 && s.v <= s.c) st = 'critical';
+          else if (s.w > 0 && s.v <= s.w) st = 'warning';
+        }
+      }
+      if (s.alarm) st = (st === 'critical') ? 'critical' : 'warning';
+      SENSORS.push({
+        id:      'S' + String(id++).padStart(3,'0'),
+        name:    s.n,
+        unit:    s.u,
+        value:   s.v,
+        warn:    s.w,
+        crit:    s.c,
+        range:   s.r,
+        hiIsBAD: s.hi,
+        status:  st,
+        line:    loc.line,
+        machine: loc.machine,
+        plc:     loc.plc,
+        protocol: loc.line==='Weld'?'MQTT':loc.line==='Test'?'MTConnect':'OPC-UA',
+        _base:   s.v,
+      });
+    });
+  });
+})();
+
+var _iiotDone   = false;
+var _iiotTimer  = null;
+var _activeTab  = 'sensors';
+
+// ── PUBLIC API ────────────────────────────────────────────────
+window.loadIIoTPage = function() {
+  if (_iiotDone) return;
+  _iiotDone = true;
+  _liveTick();
+  _iiotTimer = setInterval(_liveTick, 3000);
+};
+
+window.iiotShowTab = function(tab) {
+  _activeTab = tab;
+  document.querySelectorAll('.scm-tab[id^="iiot-tab-"]').forEach(function(t){
+    t.classList.toggle('active', t.id === 'iiot-tab-' + tab);
+  });
+  document.querySelectorAll('.iiot-panel').forEach(function(p){
+    p.style.display = p.id === 'iiot-panel-' + tab ? 'block' : 'none';
+  });
+  if (tab==='sensors') iiotRenderGrid();
+  if (tab==='plc')     _renderPLC();
+  if (tab==='map')     _renderMap();
+  if (tab==='alerts')  _renderAlerts();
+};
+
+window.iiotFilterStatus = function(status) {
+  iiotShowTab('sensors');
+  var sel = document.getElementById('iiot-f-status');
+  if (sel) sel.value = status;
+  iiotRenderGrid();
+};
+
+// ── LIVE TICK ─────────────────────────────────────────────────
+function _liveTick() {
+  // Apply small noise to each sensor
+  SENSORS.forEach(function(s){
+    if (typeof s._base !== 'number') return;
+    var amp = (s.range[1]-s.range[0])*0.015;
+    s.value = Math.round(
+      Math.max(s.range[0], Math.min(s.range[1], s._base + (Math.random()-0.5)*amp)) * 100
+    ) / 100;
+    // Recompute status
+    s.status = 'normal';
+    if (s.hiIsBAD) {
+      if (s.crit > 0 && s.value >= s.crit) s.status = 'critical';
+      else if (s.warn > 0 && s.value >= s.warn) s.status = 'warning';
+    } else {
+      if (s.crit > 0 && s.value <= s.crit) s.status = 'critical';
+      else if (s.warn > 0 && s.value <= s.warn) s.status = 'warning';
+    }
+  });
+
+  // Update KPIs
+  var crit = SENSORS.filter(function(s){return s.status==='critical';}).length;
+  var warn = SENSORS.filter(function(s){return s.status==='warning';}).length;
+  _setText('iiot-kv-total', SENSORS.length);
+  _setText('iiot-kv-crit',  crit);
+  _setText('iiot-kv-warn',  warn);
+
+  // Live-update open panels
+  if (_activeTab==='sensors') _updateCardsInPlace();
+  if (_activeTab==='plc')     _updatePLCPackets();
+  if (_activeTab==='map')     _renderMap();
+  if (_activeTab==='alerts')  _renderAlerts();
+}
+
+// ── SENSOR GRID ───────────────────────────────────────────────
+window.iiotRenderGrid = function() {
+  var grid   = document.getElementById('iiot-sensor-grid');
+  if (!grid) return;
+  var fLine   = document.getElementById('iiot-f-line')?.value   || '';
+  var fStatus = document.getElementById('iiot-f-status')?.value || '';
+  var fSearch = (document.getElementById('iiot-f-search')?.value || '').toLowerCase();
+
+  var filtered = SENSORS.filter(function(s){
+    if (fLine   && s.line !== fLine)         return false;
+    if (fStatus && s.status !== fStatus)     return false;
+    if (fSearch && !s.name.toLowerCase().includes(fSearch) && !s.id.toLowerCase().includes(fSearch) && !s.machine.toLowerCase().includes(fSearch)) return false;
+    return true;
+  });
+
+  if (!filtered.length) {
+    grid.innerHTML = '<div style="color:var(--text3);padding:20px;grid-column:1/-1">No sensors match filter</div>';
+    return;
+  }
+
+  var SC = {critical:'#ef4444',warning:'#f59e0b',normal:'#22c55e'};
+  var SB = {critical:'rgba(239,68,68,.1)',warning:'rgba(245,158,11,.07)',normal:'rgba(34,197,94,.04)'};
+  var SE = {critical:'rgba(239,68,68,.4)',warning:'rgba(245,158,11,.3)',normal:'rgba(255,255,255,.08)'};
+
+  grid.innerHTML = filtered.map(function(s){
+    var col = SC[s.status];
+    var pct = s.range[1]>s.range[0]
+      ? Math.max(0,Math.min(100,((s.value-s.range[0])/(s.range[1]-s.range[0]))*100)).toFixed(0)
+      : 50;
+    var dv  = s.value.toFixed(s.value>10?1:2);
+    return '<div id="sc-'+s.id+'" onclick="iiotOpenDrawer(\''+s.id+'\')" style="background:'+SB[s.status]+';border:1px solid '+SE[s.status]+';border-radius:9px;padding:12px;cursor:pointer;position:relative;transition:all 0.4s ease" title="Click for details">' +
+      (s.status!=='normal'?'<div style="position:absolute;top:8px;right:8px;width:7px;height:7px;border-radius:50%;background:'+col+';animation:pulse 1s infinite"></div>':'') +
+      '<div style="font-size:9px;color:#6b7280;font-family:monospace;margin-bottom:2px">'+s.id+'</div>' +
+      '<div style="font-size:12px;font-weight:700;color:#e2e8f0;margin-bottom:1px">'+s.name+'</div>' +
+      '<div style="font-size:10px;color:#6b7280;margin-bottom:8px">'+s.machine+' · '+s.line+'</div>' +
+      '<div class="iiot-val" data-id="'+s.id+'" style="font-size:22px;font-weight:800;color:'+col+';font-family:monospace;margin-bottom:5px">'+dv+'<span style="font-size:11px;font-weight:400;margin-left:3px">'+s.unit+'</span></div>' +
+      '<div style="height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;margin-bottom:6px">' +
+        '<div class="iiot-bar" data-id="'+s.id+'" style="height:100%;width:'+pct+'%;background:'+col+';border-radius:2px;transition:width 0.5s ease"></div>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:space-between;font-size:9px;color:#6b7280">' +
+        '<span>'+s.protocol+'</span>' +
+        '<span style="color:'+col+';font-weight:700">'+s.status.toUpperCase()+'</span>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+};
+
+// In-place card update (no flicker)
+function _updateCardsInPlace(){
+  var SC = {critical:'#ef4444',warning:'#f59e0b',normal:'#22c55e'};
+  SENSORS.forEach(function(s){
+    var card  = document.getElementById('sc-'+s.id);
+    if (!card) return;
+    var col   = SC[s.status];
+    var dv    = s.value.toFixed(s.value>10?1:2) + ' ' + s.unit;
+    var valEl = card.querySelector('.iiot-val[data-id="'+s.id+'"]');
+    if (valEl && valEl.dataset.prev !== dv) {
+      valEl.dataset.prev = dv;
+      valEl.style.color  = col;
+      valEl.innerHTML    = s.value.toFixed(s.value>10?1:2)+'<span style="font-size:11px;font-weight:400;margin-left:3px">'+s.unit+'</span>';
+    }
+    var barEl = card.querySelector('.iiot-bar[data-id="'+s.id+'"]');
+    if (barEl) {
+      var pct = s.range[1]>s.range[0]
+        ? Math.max(0,Math.min(100,((s.value-s.range[0])/(s.range[1]-s.range[0]))*100)).toFixed(0)
+        : 50;
+      barEl.style.width      = pct+'%';
+      barEl.style.background = col;
+    }
+    var SB = {critical:'rgba(239,68,68,.1)',warning:'rgba(245,158,11,.07)',normal:'rgba(34,197,94,.04)'};
+    var SE = {critical:'rgba(239,68,68,.4)',warning:'rgba(245,158,11,.3)',normal:'rgba(255,255,255,.08)'};
+    card.style.background  = SB[s.status];
+    card.style.borderColor = SE[s.status];
+  });
+}
+
+// ── SENSOR DETAIL DRAWER ──────────────────────────────────────
+window.iiotOpenDrawer = function(id) {
+  var s = SENSORS.find(function(x){return x.id===id;});
+  if (!s) return;
+  var drawer = document.getElementById('iiot-drawer');
+  var content = document.getElementById('drawer-content');
+  var title   = document.getElementById('drawer-title');
+  if (!drawer||!content||!title) return;
+  title.textContent = s.name + ' — ' + s.id;
+
+  var col = {critical:'#ef4444',warning:'#f59e0b',normal:'#22c55e'}[s.status];
+  var dv  = s.value.toFixed(s.value>10?1:2);
+
+  // Build sparkline (mock last 20 values)
+  var pts = [];
+  for (var i=20; i>=0; i--) {
+    var amp = (s.range[1]-s.range[0])*0.06;
+    pts.push(Math.max(s.range[0],Math.min(s.range[1], s._base + (Math.random()-0.5)*amp)));
+  }
+  pts[pts.length-1] = s.value;
+  var mn = Math.min.apply(null,pts), mx = Math.max.apply(null,pts), span = mx-mn||1;
+  var W=300,H=80,PAD=20;
+  var ptStr = pts.map(function(v,i){
+    return (PAD + i/(pts.length-1)*(W-2*PAD)).toFixed(0)+','+(H-PAD-((v-mn)/span)*(H-2*PAD)).toFixed(0);
+  }).join(' ');
+  var warnY = s.warn>0 ? (H-PAD-((s.warn-mn)/span)*(H-2*PAD)).toFixed(0) : -1;
+  var critY = s.crit>0 ? (H-PAD-((s.crit-mn)/span)*(H-2*PAD)).toFixed(0) : -1;
+
+  content.innerHTML =
+    // Status badge
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">' +
+      '<div style="width:10px;height:10px;border-radius:50%;background:'+col+';animation:pulse 1s infinite"></div>' +
+      '<span style="font-size:13px;font-weight:700;color:'+col+'">'+s.status.toUpperCase()+'</span>' +
+      '<span style="font-size:11px;color:#6b7280">'+s.protocol+' · '+s.plc+'</span>' +
+    '</div>' +
+
+    // Live value
+    '<div style="background:#112645;border-radius:10px;padding:16px;text-align:center;margin-bottom:14px">' +
+      '<div style="font-size:10px;color:#6b7280;margin-bottom:4px">CURRENT VALUE</div>' +
+      '<div id="drawer-live-val" style="font-size:36px;font-weight:900;color:'+col+';font-family:monospace">'+dv+'</div>' +
+      '<div style="font-size:13px;color:#9ca3af;margin-top:4px">'+s.unit+'</div>' +
+    '</div>' +
+
+    // Thresholds
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">' +
+      (s.warn>0?'<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:7px;padding:10px;text-align:center"><div style="font-size:9px;color:#6b7280">WARNING</div><div style="font-size:16px;font-weight:700;color:#f59e0b">'+s.warn+' '+s.unit+'</div></div>':'') +
+      (s.crit>0?'<div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:7px;padding:10px;text-align:center"><div style="font-size:9px;color:#6b7280">CRITICAL</div><div style="font-size:16px;font-weight:700;color:#ef4444">'+s.crit+' '+s.unit+'</div></div>':'') +
+    '</div>' +
+
+    // Sparkline
+    '<div style="background:#0a1628;border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:8px;margin-bottom:14px">' +
+      '<div style="font-size:10px;color:#6b7280;margin-bottom:4px">LAST 20 READINGS</div>' +
+      '<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg" style="width:100%">' +
+        (warnY>0?'<line x1="'+PAD+'" y1="'+warnY+'" x2="'+(W-PAD)+'" y2="'+warnY+'" stroke="rgba(245,158,11,.4)" stroke-width="1" stroke-dasharray="3,3"/>':'') +
+        (critY>0?'<line x1="'+PAD+'" y1="'+critY+'" x2="'+(W-PAD)+'" y2="'+critY+'" stroke="rgba(239,68,68,.4)" stroke-width="1" stroke-dasharray="3,3"/>':'') +
+        '<polyline points="'+ptStr+'" fill="none" stroke="'+col+'" stroke-width="2"/>' +
+        '<circle cx="'+(PAD+(pts.length-1)/(pts.length-1)*(W-2*PAD)).toFixed(0)+'" cy="'+(H-PAD-((s.value-mn)/span)*(H-2*PAD)).toFixed(0)+'" r="4" fill="'+col+'"/>' +
+      '</svg>' +
+      '<div style="display:flex;justify-content:space-between;font-size:9px;color:#6b7280;margin-top:3px"><span>'+mn.toFixed(2)+'</span><span>'+mx.toFixed(2)+'</span></div>' +
+    '</div>' +
+
+    // Info grid
+    '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">' +
+      _infoRow('Line', s.line) +
+      _infoRow('Machine', s.machine) +
+      _infoRow('PLC', s.plc) +
+      _infoRow('Protocol', s.protocol) +
+      _infoRow('Range', s.range[0]+' – '+s.range[1]+' '+s.unit) +
+      _infoRow('Last update', new Date().toLocaleTimeString()) +
+    '</div>' +
+
+    // Action buttons
+    '<div style="display:flex;flex-direction:column;gap:8px">' +
+      (s.status!=='normal'?
+        '<button onclick="nav(\'pred\')" style="padding:9px;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.3);border-radius:7px;color:#8b5cf6;font-size:12px;font-weight:700;cursor:pointer;width:100%">View in Predictive Maintenance →</button>' +
+        '<button onclick="nav(\'mes\')" style="padding:9px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:7px;color:#22c55e;font-size:12px;font-weight:700;cursor:pointer;width:100%">Create Maintenance Work Order →</button>'
+        : '') +
+      '<button onclick="iiotShowTab(\'history\');document.getElementById(\'iiot-drawer\').style.display=\'none\'" style="padding:9px;background:rgba(0,194,224,.1);border:1px solid rgba(0,194,224,.3);border-radius:7px;color:#00c2e0;font-size:12px;cursor:pointer;width:100%">View Reading History</button>' +
+    '</div>';
+
+  drawer.style.display = 'block';
+
+  // Keep drawer live value updating
+  if (drawer._liveTimer) clearInterval(drawer._liveTimer);
+  drawer._liveTimer = setInterval(function(){
+    var el = document.getElementById('drawer-live-val');
+    if (!el || drawer.style.display==='none') { clearInterval(drawer._liveTimer); return; }
+    var ss = SENSORS.find(function(x){return x.id===id;});
+    if (ss) {
+      el.textContent = ss.value.toFixed(ss.value>10?1:2);
+      el.style.color = {critical:'#ef4444',warning:'#f59e0b',normal:'#22c55e'}[ss.status];
+    }
+  }, 1000);
+};
+
+function _infoRow(label, value) {
+  return '<div style="display:flex;justify-content:space-between;font-size:11px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)">' +
+    '<span style="color:#6b7280">'+label+'</span>' +
+    '<span style="color:#9ca3af">'+value+'</span>' +
+  '</div>';
+}
+
+// ── PLCs ──────────────────────────────────────────────────────
+var PLCS = [
+  {id:'PLC-L1-01',line:'Line 1',machine:'DMG CTX 510',        protocol:'OPC-UA',  sensors:8, latency:11},
+  {id:'PLC-L2-01',line:'Line 2',machine:'Mazak QT-350',        protocol:'OPC-UA',  sensors:8, latency:10},
+  {id:'PLC-L3-01',line:'Line 3',machine:'FANUC Robodrill',     protocol:'OPC-UA',  sensors:8, latency:13},
+  {id:'PLC-L4-01',line:'Line 4',machine:'Haas VF-4',           protocol:'OPC-UA',  sensors:8, latency:12},
+  {id:'PLC-L5-01',line:'Line 5',machine:'Hermle C 400',        protocol:'OPC-UA',  sensors:8, latency:10},
+  {id:'PLC-L6-01',line:'Line 6',machine:'Brother Speedio',     protocol:'OPC-UA',  sensors:8, latency:11},
+  {id:'PLC-PR-01',line:'Press', machine:'Hydraulic Press 80T', protocol:'OPC-UA',  sensors:8, latency:14},
+  {id:'PLC-WD-01',line:'Weld',  machine:'FANUC Arc Welder',    protocol:'MQTT',    sensors:8, latency:8},
+  {id:'PLC-TC-01',line:'Test',  machine:'Turbo Test Rig',      protocol:'MTConnect',sensors:8,latency:9},
+];
+
+function _plcStatus(plcId) {
+  var lineSensors = SENSORS.filter(function(s){ return s.plc === plcId; });
+  if (lineSensors.some(function(s){ return s.status==='critical'; })) return 'ALARM';
+  if (lineSensors.some(function(s){ return s.status==='warning';  })) return 'WARN';
+  return 'LIVE';
+}
+
+function _renderPLC() {
+  var el = document.getElementById('iiot-plc-list');
+  if (!el) return;
+  el.innerHTML = PLCS.map(function(p){
+    var st  = _plcStatus(p.id);
+    var col = st==='ALARM'?'#ef4444':st==='WARN'?'#f59e0b':'#22c55e';
+    var lat = (p.latency + Math.round((Math.random()-0.5)*3));
+    return '<div style="background:#0d1f3c;border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="iiotFilterStatus(\'\');var s=document.getElementById(\'iiot-f-line\');if(s)s.value=\''+p.line+'\';iiotShowTab(\'sensors\')">' +
+      '<div style="display:flex;gap:10px;align-items:center">' +
+        '<div style="width:8px;height:8px;border-radius:50%;background:'+col+';animation:pulse 1.5s infinite;flex-shrink:0"></div>' +
+        '<div>' +
+          '<div style="font-size:11px;font-weight:700;color:#e2e8f0">'+p.id+'</div>' +
+          '<div style="font-size:10px;color:#6b7280">'+p.machine+' · '+p.line+'</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:12px;align-items:center">' +
+        '<div style="text-align:right">' +
+          '<div style="font-size:10px;color:#6b7280">'+p.protocol+'</div>' +
+          '<div id="plc-lat-'+p.id.replace(/-/g,'_')+'" style="font-size:11px;color:#22c55e;font-family:monospace">'+lat+'ms</div>' +
+        '</div>' +
+        '<span style="font-size:10px;padding:2px 7px;background:'+col+'20;color:'+col+';border-radius:4px;font-weight:700">'+st+'</span>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function _updatePLCPackets() {
+  var el = document.getElementById('iiot-pps');
+  if (el) el.textContent = (720 + Math.round((Math.random()-0.5)*30));
+  PLCS.forEach(function(p){
+    var id  = 'plc-lat-'+p.id.replace(/-/g,'_');
+    var el2 = document.getElementById(id);
+    if (el2) el2.textContent = (p.latency + Math.round((Math.random()-0.5)*4)) + 'ms';
+  });
+}
+
+// ── PLANT MAP ─────────────────────────────────────────────────
+function _renderMap() {
+  var container = document.getElementById('iiot-map-container');
+  if (!container) return;
+
+  var AREAS = [
+    {key:'Line 1',x:40, y:40, w:110,h:75,label:'Line 1',sub:'Engine Mounts'},
+    {key:'Line 2',x:165,y:40, w:110,h:75,label:'Line 2',sub:'Brake Calipers'},
+    {key:'Line 3',x:290,y:40, w:110,h:75,label:'Line 3',sub:'Turbochargers'},
+    {key:'Line 4',x:415,y:40, w:110,h:75,label:'Line 4',sub:'Fuel Systems'},
+    {key:'Line 5',x:540,y:40, w:110,h:75,label:'Line 5',sub:'Aerospace'},
+    {key:'Line 6',x:665,y:40, w:110,h:75,label:'Line 6',sub:'EV Battery'},
+    {key:'Press', x:40, y:140,w:175,h:75,label:'Press', sub:'Hydraulic Press'},
+    {key:'Weld',  x:240,y:140,w:175,h:75,label:'Weld',  sub:'Arc Weld Cells'},
+    {key:'Test',  x:440,y:140,w:175,h:75,label:'Test',  sub:'Turbo Test Rig'},
+  ];
+
+  var SC = {critical:'#ef4444',warning:'#f59e0b',normal:'#22c55e'};
+
+  var svgAreas = AREAS.map(function(a){
+    var lineSensors = SENSORS.filter(function(s){return s.line===a.key;});
+    var crit = lineSensors.filter(function(s){return s.status==='critical';}).length;
+    var warn = lineSensors.filter(function(s){return s.status==='warning';}).length;
+    var col  = crit>0?'#ef4444':warn>0?'#f59e0b':'#22c55e';
+    var cx   = a.x + a.w/2;
+    var cy   = a.y + a.h/2;
+    var dot  = crit>0
+      ? '<circle cx="'+(a.x+a.w-10)+'" cy="'+(a.y+10)+'" r="5" fill="#ef4444"><animate attributeName="r" values="4;7;4" dur="0.8s" repeatCount="indefinite"/></circle>'
+      : warn>0
+        ? '<circle cx="'+(a.x+a.w-10)+'" cy="'+(a.y+10)+'" r="4" fill="#f59e0b"><animate attributeName="opacity" values="1;0.3;1" dur="1.2s" repeatCount="indefinite"/></circle>'
+        : '<circle cx="'+(a.x+a.w-10)+'" cy="'+(a.y+10)+'" r="4" fill="#22c55e"/>';
+    return '<rect x="'+a.x+'" y="'+a.y+'" width="'+a.w+'" height="'+a.h+'" fill="'+col+'" fill-opacity="0.07" stroke="'+col+'" stroke-opacity="0.45" stroke-width="1.5" rx="5" style="cursor:pointer" onclick="iiotFilterStatus(\'\');var s=document.getElementById(\'iiot-f-line\');if(s)s.value=\''+a.key+'\';iiotShowTab(\'sensors\')"/>' +
+      '<text x="'+cx+'" y="'+(cy-10)+'" font-size="9" fill="'+col+'" text-anchor="middle" font-weight="700" style="pointer-events:none">'+a.label+'</text>' +
+      '<text x="'+cx+'" y="'+(cy+4)+'" font-size="8" fill="#9ca3af" text-anchor="middle" style="pointer-events:none">'+a.sub+'</text>' +
+      '<text x="'+cx+'" y="'+(cy+17)+'" font-size="8" fill="'+col+'" text-anchor="middle" style="pointer-events:none">'+(lineSensors.length)+' sensors'+(crit?' · '+crit+'⚠':warn?' · '+warn+'▲':'')+'</text>' +
+      dot;
+  }).join('');
+
+  container.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+      '<div style="font-size:12px;font-weight:600;color:#e2e8f0">Live Plant Sensor Map — click any area to filter sensors</div>' +
+      '<div style="display:flex;gap:12px;font-size:10px">' +
+        '<span style="color:#ef4444">⬤ Critical</span>' +
+        '<span style="color:#f59e0b">⬤ Warning</span>' +
+        '<span style="color:#22c55e">⬤ Normal</span>' +
+      '</div>' +
+    '</div>' +
+    '<svg viewBox="0 0 800 240" xmlns="http://www.w3.org/2000/svg" style="width:100%;background:#071527;border-radius:8px;border:1px solid rgba(0,194,224,.18)">' +
+      '<rect width="800" height="240" fill="#071527"/>' +
+      '<rect x="15" y="15" width="770" height="210" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="1.5" rx="4"/>' +
+      svgAreas +
+      '<text x="400" y="234" font-size="8" fill="#374151" text-anchor="middle">'+SENSORS.length+' sensors · '+SENSORS.filter(function(s){return s.status==='critical';}).length+' critical · '+SENSORS.filter(function(s){return s.status==='warning';}).length+' warning · updates every 3s</text>' +
+    '</svg>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;margin-top:10px">' +
+      PLCS.map(function(p){
+        var st  = _plcStatus(p.id);
+        var col = st==='ALARM'?'#ef4444':st==='WARN'?'#f59e0b':'#22c55e';
+        return '<div onclick="iiotFilterStatus(\'\');var s=document.getElementById(\'iiot-f-line\');if(s)s.value=\''+p.line+'\';iiotShowTab(\'sensors\')" style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:7px 10px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">' +
+          '<span style="font-size:10px;color:#e2e8f0">'+p.id+'</span>' +
+          '<span style="font-size:9px;color:'+col+';font-weight:700">'+st+'</span>' +
+        '</div>';
+      }).join('') +
+    '</div>';
+}
+
+// ── ALERTS ────────────────────────────────────────────────────
+function _renderAlerts() {
+  var el = document.getElementById('iiot-alerts-list');
+  if (!el) return;
+  var alerts = SENSORS.filter(function(s){return s.status!=='normal';});
+  alerts.sort(function(a,b){return (a.status==='critical'?0:1)-(b.status==='critical'?0:1);});
+  if (!alerts.length) {
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:#22c55e;font-size:13px">✓ All 72 sensors within normal parameters</div>';
+    return;
+  }
+  var SC = {critical:'#ef4444',warning:'#f59e0b'};
+  el.innerHTML = alerts.map(function(s){
+    var col = SC[s.status]||'#f59e0b';
+    var dv  = s.value.toFixed(s.value>10?1:2);
+    var threshold = s.status==='critical' ? s.crit : s.warn;
+    return '<div style="background:rgba(255,255,255,.02);border:1px solid '+col+'44;border-left:3px solid '+col+';border-radius:8px;padding:14px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px">' +
+      '<div style="flex:1">' +
+        '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">' +
+          '<span style="font-size:10px;padding:2px 6px;background:'+col+'20;color:'+col+';border-radius:3px;font-weight:700">'+s.status.toUpperCase()+'</span>' +
+          '<span style="font-size:12px;font-weight:700;color:#e2e8f0">'+s.name+'</span>' +
+          '<span style="font-size:10px;color:#6b7280">'+s.id+' · '+s.line+'</span>' +
+        '</div>' +
+        '<div style="font-size:15px;font-weight:800;color:'+col+';font-family:monospace">'+dv+' '+s.unit+' '+
+          (threshold>0?'<span style="font-size:10px;color:#6b7280;font-weight:400">threshold: '+threshold+' '+s.unit+'</span>':'')+
+        '</div>' +
+        '<div style="font-size:11px;color:#9ca3af;margin-top:4px">'+s.machine+' · '+s.plc+' · '+s.protocol+'</div>' +
+      '</div>' +
+      '<div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0">' +
+        '<button onclick="iiotOpenDrawer(\''+s.id+'\')" style="padding:4px 10px;background:rgba(0,194,224,.1);border:1px solid rgba(0,194,224,.3);border-radius:5px;color:#00c2e0;font-size:10px;cursor:pointer">Detail</button>' +
+        '<button onclick="nav(\'pred\')" style="padding:4px 10px;background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.3);border-radius:5px;color:#8b5cf6;font-size:10px;cursor:pointer">Predict</button>' +
+        '<button onclick="nav(\'mes\')" style="padding:4px 10px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:5px;color:#22c55e;font-size:10px;cursor:pointer">WO →</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function _setText(id, v){var e=document.getElementById(id);if(e)e.textContent=v;}
+
+// Close drawer on Escape
+document.addEventListener('keydown', function(e){
+  if (e.key==='Escape') {
+    var d=document.getElementById('iiot-drawer');
+    if (d) d.style.display='none';
+  }
+});
+
 })();
 </script>
 </body>
