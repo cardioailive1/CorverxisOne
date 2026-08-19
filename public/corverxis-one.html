@@ -12328,5 +12328,274 @@ document.addEventListener('keydown', function(e){
 
 })();
 </script>
+
+<style>
+.aio-sys-card {
+  background:#0d1f3c;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:10px;
+  padding:14px;
+  cursor:pointer;
+  transition:all 0.25s ease;
+  position:relative;
+}
+.aio-sys-card:hover {
+  border-color:rgba(0,194,224,.35);
+  background:#112645;
+  transform:translateY(-2px);
+}
+.aio-sys-card.DEGRADED { border-color:rgba(245,158,11,.35); }
+.aio-sys-card.REVIEW   { border-color:rgba(245,158,11,.25); }
+.aio-sys-card.OFFLINE  { border-color:rgba(239,68,68,.4); }
+</style>
+
+<!-- AI Ops System Detail Drawer -->
+<div id="aio-drawer" style="display:none;position:fixed;right:0;top:0;width:400px;height:100vh;background:#0d1f3c;border-left:1px solid rgba(0,194,224,.2);z-index:1000;overflow-y:auto;padding:22px;box-shadow:-8px 0 40px rgba(0,0,0,.6)">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+    <div style="font-size:14px;font-weight:700;color:#e2e8f0" id="aio-drawer-title">System Detail</div>
+    <button onclick="document.getElementById('aio-drawer').style.display='none'" style="background:none;border:none;color:#6b7280;font-size:22px;cursor:pointer;line-height:1">×</button>
+  </div>
+  <div id="aio-drawer-content"></div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+//  AI Ops Center — reactive health cards + detail drawer
+// ══════════════════════════════════════════════════════════════
+(function(){
+
+var _aioLiveTimer = null;
+
+// ── Live metrics noise ────────────────────────────────────────
+function _addNoise(base, range) {
+  return Math.max(0, Math.min(100, base + (Math.random()-0.5)*range));
+}
+
+// ── Replace renderAIOHealth with interactive version ──────────
+var _prevRenderAIOHealth = window.renderAIOHealth;
+window.renderAIOHealth = function() {
+  var grid = document.getElementById('aio-system-cards');
+  if (!grid) return;
+
+  var SC = { HEALTHY:'#22c55e', DEGRADED:'#f59e0b', REVIEW:'#f59e0b', OFFLINE:'#ef4444' };
+
+  grid.innerHTML = AIO_SYSTEMS.map(function(s) {
+    var sc       = SC[s.status] || '#6b7280';
+    var latCol   = s.latency < 0.5 ? '#22c55e' : s.latency < 2 ? '#f59e0b' : '#ef4444';
+    var driftCol = s.drift < 0.5 ? '#22c55e' : s.drift < 2 ? '#f59e0b' : '#ef4444';
+    var accVal   = s.accuracy ? s.accuracy + '%' : '—';
+    var latVal   = s.latency + 's';
+
+    // Request/hour simulated metric
+    var rph = s.id==='erp'?48291 : s.id==='spc'?12400 : s.id==='rag'?842 : s.id==='claude'?1204 : s.id==='scheduler'?188 : Math.round(s.uptime * 10);
+
+    return '<div class="aio-sys-card ' + s.status + '" onclick="aioOpenSystemDrawer(\'' + s.id + '\')">' +
+      // Header
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">' +
+        '<div style="display:flex;gap:8px;align-items:center">' +
+          '<div style="width:36px;height:36px;border-radius:7px;background:'+s.iconBg+';display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff;flex-shrink:0">'+s.icon+'</div>' +
+          '<div>' +
+            '<div style="font-size:12px;font-weight:700;color:#e2e8f0">'+s.name+'</div>' +
+            '<div style="font-size:10px;color:#6b7280">'+s.modelType+'</div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;gap:5px">' +
+          '<div style="width:6px;height:6px;border-radius:50%;background:'+sc+(s.status==='HEALTHY'?';animation:pulse 2s infinite':'')+';flex-shrink:0"></div>' +
+          '<span style="font-size:10px;color:'+sc+';font-weight:700">'+s.status+'</span>' +
+        '</div>' +
+      '</div>' +
+
+      // Metrics grid
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:8px">' +
+        '<div style="background:#112645;border-radius:5px;padding:5px;text-align:center">' +
+          '<div style="font-size:8px;color:#6b7280">UPTIME</div>' +
+          '<div id="aio-uptime-'+s.id+'" style="font-size:12px;font-weight:700;color:#22c55e">'+s.uptime+'%</div>' +
+        '</div>' +
+        '<div style="background:#112645;border-radius:5px;padding:5px;text-align:center">' +
+          '<div style="font-size:8px;color:#6b7280">'+(s.accuracy?'ACCURACY':'LATENCY')+'</div>' +
+          '<div id="aio-acc-'+s.id+'" style="font-size:12px;font-weight:700;color:#22c55e">'+(s.accuracy?accVal:latVal)+'</div>' +
+        '</div>' +
+        '<div style="background:#112645;border-radius:5px;padding:5px;text-align:center">' +
+          '<div style="font-size:8px;color:#6b7280">LATENCY</div>' +
+          '<div id="aio-lat-'+s.id+'" style="font-size:12px;font-weight:700;color:'+latCol+'">'+latVal+'</div>' +
+        '</div>' +
+      '</div>' +
+
+      // Footer row
+      '<div style="display:flex;justify-content:space-between;align-items:center;font-size:10px">' +
+        '<span style="color:#6b7280">Drift: <span style="color:'+driftCol+';font-weight:700">'+s.drift+'%</span></span>' +
+        '<span style="color:#6b7280">'+s.lastValidated+'</span>' +
+        '<span style="color:#00c2e0;font-size:10px">Details →</span>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  // Start live ticking
+  if (_aioLiveTimer) clearInterval(_aioLiveTimer);
+  _aioLiveTimer = setInterval(_aioTick, 3000);
+};
+
+// ── Live tick — update latency and uptime in-place ────────────
+function _aioTick() {
+  AIO_SYSTEMS.forEach(function(s) {
+    // Latency: add small noise
+    var newLat = Math.max(0.01, s.latency + (Math.random()-0.5)*s.latency*0.08);
+    newLat = Math.round(newLat * 100) / 100;
+    var latEl = document.getElementById('aio-lat-' + s.id);
+    if (latEl) {
+      var latCol = newLat < 0.5 ? '#22c55e' : newLat < 2 ? '#f59e0b' : '#ef4444';
+      latEl.textContent  = newLat + 's';
+      latEl.style.color  = latCol;
+    }
+
+    // Uptime: tiny fluctuation
+    var newUp = Math.min(100, Math.max(95, s.uptime + (Math.random()-0.5)*0.02));
+    newUp = Math.round(newUp * 100) / 100;
+    var upEl = document.getElementById('aio-uptime-' + s.id);
+    if (upEl) upEl.textContent = newUp + '%';
+
+    // Update drawer if open for this system
+    var drawer = document.getElementById('aio-drawer');
+    if (drawer && drawer.style.display !== 'none' && drawer.dataset.sysId === s.id) {
+      var dlEl = document.getElementById('drawer-aio-lat');
+      if (dlEl) { dlEl.textContent = newLat + 's'; dlEl.style.color = newLat<0.5?'#22c55e':newLat<2?'#f59e0b':'#ef4444'; }
+    }
+  });
+}
+
+// ── System Detail Drawer ──────────────────────────────────────
+window.aioOpenSystemDrawer = function(sysId) {
+  var s = AIO_SYSTEMS.find(function(x){ return x.id===sysId; });
+  if (!s) return;
+
+  var drawer  = document.getElementById('aio-drawer');
+  var content = document.getElementById('aio-drawer-content');
+  var title   = document.getElementById('aio-drawer-title');
+  if (!drawer||!content||!title) return;
+
+  drawer.dataset.sysId = sysId;
+  title.textContent = s.name;
+
+  var SC = { HEALTHY:'#22c55e', DEGRADED:'#f59e0b', REVIEW:'#f59e0b', OFFLINE:'#ef4444' };
+  var sc = SC[s.status] || '#6b7280';
+
+  // Incident count for this system
+  var sysInc = _staticIncidents.filter(function(i){ return i.system.toLowerCase().includes(s.name.toLowerCase().split(' ')[1]||s.name.toLowerCase().split(' ')[0]) && i.status!=='RESOLVED'; });
+
+  // Build uptime sparkline (mock 30-day data)
+  var W=340, H=60, PAD=10;
+  var pts = [];
+  for (var i=30; i>=0; i--) {
+    var v = Math.max(95, Math.min(100, s.uptime + (Math.random()-0.5)*1.5));
+    pts.push(v);
+  }
+  pts[pts.length-1] = s.uptime;
+  var mn=Math.min.apply(null,pts), mx=Math.max.apply(null,pts), sp=mx-mn||0.1;
+  var ptStr = pts.map(function(v,i){
+    return (PAD+i/(pts.length-1)*(W-2*PAD)).toFixed(0)+','+(H-PAD-((v-mn)/sp)*(H-2*PAD)).toFixed(0);
+  }).join(' ');
+
+  content.innerHTML =
+    // Icon + status
+    '<div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">' +
+      '<div style="width:48px;height:48px;border-radius:10px;background:'+s.iconBg+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff">'+s.icon+'</div>' +
+      '<div>' +
+        '<div style="font-size:11px;color:#6b7280">'+s.modelType+'</div>' +
+        '<div style="font-size:11px;color:#6b7280;margin-top:2px">'+s.fn+'</div>' +
+      '</div>' +
+    '</div>' +
+
+    // Status banner
+    '<div style="background:'+sc+'18;border:1px solid '+sc+'44;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
+      '<div style="display:flex;align-items:center;gap:8px">' +
+        '<div style="width:8px;height:8px;border-radius:50%;background:'+sc+(s.status==='HEALTHY'?';animation:pulse 1.5s infinite':'')+'""></div>' +
+        '<span style="font-weight:700;color:'+sc+';font-size:13px">'+s.status+'</span>' +
+      '</div>' +
+      '<span style="font-size:11px;color:#9ca3af">Last validated: '+s.lastValidated+'</span>' +
+    '</div>' +
+
+    // Live metrics
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">' +
+      '<div style="background:#112645;border-radius:8px;padding:12px;text-align:center">' +
+        '<div style="font-size:9px;color:#6b7280;margin-bottom:3px">30-DAY UPTIME</div>' +
+        '<div style="font-size:24px;font-weight:800;color:#22c55e">'+s.uptime+'%</div>' +
+      '</div>' +
+      (s.accuracy ? '<div style="background:#112645;border-radius:8px;padding:12px;text-align:center"><div style="font-size:9px;color:#6b7280;margin-bottom:3px">ACCURACY</div><div style="font-size:24px;font-weight:800;color:#22c55e">'+s.accuracy+'%</div></div>' : '') +
+      '<div style="background:#112645;border-radius:8px;padding:12px;text-align:center">' +
+        '<div style="font-size:9px;color:#6b7280;margin-bottom:3px">AVG LATENCY</div>' +
+        '<div id="drawer-aio-lat" style="font-size:24px;font-weight:800;color:'+(s.latency<0.5?'#22c55e':s.latency<2?'#f59e0b':'#ef4444')+'">'+s.latency+'s</div>' +
+      '</div>' +
+      '<div style="background:#112645;border-radius:8px;padding:12px;text-align:center">' +
+        '<div style="font-size:9px;color:#6b7280;margin-bottom:3px">MODEL DRIFT</div>' +
+        '<div style="font-size:24px;font-weight:800;color:'+(s.drift<0.5?'#22c55e':s.drift<2?'#f59e0b':'#ef4444')+'">'+s.drift+'%</div>' +
+      '</div>' +
+    '</div>' +
+
+    // 30-day uptime sparkline
+    '<div style="background:#0a1628;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:10px;margin-bottom:16px">' +
+      '<div style="font-size:10px;color:#6b7280;margin-bottom:5px">30-DAY UPTIME TREND</div>' +
+      '<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg" style="width:100%">' +
+        '<polyline points="'+ptStr+'" fill="none" stroke="'+sc+'" stroke-width="1.8"/>' +
+        '<circle cx="'+(PAD+(pts.length-1)/(pts.length-1)*(W-2*PAD)).toFixed(0)+'" cy="'+(H-PAD-((s.uptime-mn)/sp)*(H-2*PAD)).toFixed(0)+'" r="4" fill="'+sc+'"/>' +
+      '</svg>' +
+      '<div style="display:flex;justify-content:space-between;font-size:9px;color:#6b7280;margin-top:2px"><span>30 days ago</span><span>Today</span></div>' +
+    '</div>' +
+
+    // Info rows
+    '<div style="display:flex;flex-direction:column;gap:5px;margin-bottom:16px">' +
+      _aioInfoRow('Trend (7d)', s.trend, s.trend.startsWith('+')?'#22c55e':s.trend.startsWith('-')?'#ef4444':'#6b7280') +
+      _aioInfoRow('Predictions / hour', s.id==='erp'?'48,291 events':s.id==='spc'?'12,400 checks':s.id==='rag'?'842 queries':'—', '#9ca3af') +
+      _aioInfoRow('Drift (30d)',  s.drift + '%', s.drift<0.5?'#22c55e':s.drift<2?'#f59e0b':'#ef4444') +
+      _aioInfoRow('SLA target', '99.9% uptime · <2s latency', '#6b7280') +
+    '</div>' +
+
+    // Open incidents for this system
+    (sysInc.length ? (
+      '<div style="margin-bottom:16px">' +
+        '<div style="font-size:11px;font-weight:600;color:#f59e0b;margin-bottom:8px">⚠ '+sysInc.length+' Open Incident'+(sysInc.length>1?'s':'')+'</div>' +
+        sysInc.map(function(i){
+          return '<div style="background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);border-radius:7px;padding:10px;margin-bottom:6px;font-size:11px">' +
+            '<div style="font-weight:600;color:#f59e0b;margin-bottom:3px">'+i.title+'</div>' +
+            '<div style="color:#9ca3af">'+i.desc.substring(0,120)+'…</div>' +
+          '</div>';
+        }).join('')+
+      '</div>'
+    ) : '<div style="background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2);border-radius:7px;padding:10px;font-size:11px;color:#22c55e;margin-bottom:16px">✓ No open incidents for this system</div>') +
+
+    // Actions
+    '<div style="display:flex;flex-direction:column;gap:8px">' +
+      '<button onclick="aioTab(\'models\')" style="padding:9px;background:rgba(0,194,224,.1);border:1px solid rgba(0,194,224,.3);border-radius:7px;color:#00c2e0;font-size:12px;cursor:pointer;width:100%">View Model Performance →</button>' +
+      '<button onclick="openNewIncidentModal()" style="padding:9px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:7px;color:#ef4444;font-size:12px;cursor:pointer;width:100%">Raise Incident for this System</button>' +
+      '<button onclick="aioTab(\'console\')" style="padding:9px;background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.3);border-radius:7px;color:#8b5cf6;font-size:12px;cursor:pointer;width:100%">Query this System in AI Console →</button>' +
+    '</div>';
+
+  drawer.style.display = 'block';
+};
+
+function _aioInfoRow(label, value, col) {
+  return '<div style="display:flex;justify-content:space-between;font-size:11px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05)">' +
+    '<span style="color:#6b7280">'+label+'</span>' +
+    '<span style="color:'+(col||'#9ca3af')+';font-weight:600">'+value+'</span>' +
+  '</div>';
+}
+
+// Close on Escape
+document.addEventListener('keydown', function(e){
+  if (e.key==='Escape') {
+    var d = document.getElementById('aio-drawer');
+    if (d) { d.style.display='none'; if (_aioLiveTimer) { clearInterval(_aioLiveTimer); _aioLiveTimer=null; } }
+  }
+});
+
+// On page load, re-render with the new interactive version
+var _origLoadAIOCenter = window.loadAIOCenter;
+window.loadAIOCenter = function() {
+  _origLoadAIOCenter && _origLoadAIOCenter();
+  // Re-render health cards with clickable version
+  setTimeout(function(){ if (document.getElementById('aio-system-cards')) window.renderAIOHealth(); }, 50);
+};
+
+})();
+</script>
 </body>
 </html>
