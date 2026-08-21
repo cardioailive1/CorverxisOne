@@ -3261,7 +3261,7 @@ tr:hover td{background:rgba(255,255,255,0.02);}
   <div id="cm-training-models-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-bottom:16px">
     <div style="color:var(--muted);font-size:12px;padding:20px">Loading training models…</div>
   </div>
-  <div class="card" style="padding:0;overflow:hidden">
+  <div class="card" style="padding:0;overflow:hidden" id="cm-enrollments-card">
     <div class="ct" style="padding:14px 14px 0" id="cm-enrollments-title">Enrollments</div>
     <table><thead><tr><th>Employee</th><th>Course</th><th>Provider</th><th>Status</th><th>Due Date</th></tr></thead>
     <tbody id="cm-training-tbody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Create or load a training model above, then click it to view enrollments here.</td></tr></tbody></table>
@@ -12984,13 +12984,18 @@ function cmRenderTrainingModels() {
   grid.innerHTML = CM_TRAINING_MODELS.map(function(m){
     var col = PILLAR_COLORS[m.pillar] || '#6b7280';
     var selected = m.id === _cmSelectedModelId;
-    return '<div class="cm-initiative-card" style="cursor:pointer;'+(selected?'border-color:#00c2e0;':'')+'" onclick="cmSelectTrainingModel(\''+m.id+'\')">' +
+    var cardStyle = selected
+      ? 'cursor:pointer;border:2px solid #00c2e0;background:rgba(0,194,224,.08);box-shadow:0 0 0 1px rgba(0,194,224,.2)'
+      : 'cursor:pointer';
+    return '<div class="cm-initiative-card" style="'+cardStyle+'" onclick="cmSelectTrainingModel(\''+m.id+'\')">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">' +
         '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+col+'22;color:'+col+'">'+PILLAR_LABELS[m.pillar]+'</span>' +
-        '<div style="display:flex;align-items:center;gap:5px">' +
-          (m.enrollmentCount>0 ? '<div style="width:6px;height:6px;border-radius:50%;background:#22c55e;animation:pulse 2s infinite"></div>' : '') +
-          '<span style="font-size:10px;color:var(--muted)">'+m.format+' · '+m.durationHours+'h</span>' +
-        '</div>' +
+        (selected
+          ? '<span style="font-size:10px;font-weight:700;color:#00c2e0;display:flex;align-items:center;gap:4px">✓ SELECTED</span>'
+          : '<div style="display:flex;align-items:center;gap:5px">' +
+              (m.enrollmentCount>0 ? '<div style="width:6px;height:6px;border-radius:50%;background:#22c55e;animation:pulse 2s infinite"></div>' : '') +
+              '<span style="font-size:10px;color:var(--muted)">'+m.format+' · '+m.durationHours+'h</span>' +
+            '</div>') +
       '</div>' +
       '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">'+m.title+'</div>' +
       '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.4">'+(m.description||'')+'</div>' +
@@ -13014,6 +13019,21 @@ function cmRenderTrainingModels() {
 window.cmSelectTrainingModel = function(id){
   _cmSelectedModelId = id;
   cmRenderTrainingModels();
+  // Make the reaction undeniable: scroll the enrollments card into view
+  // and flash it, since the table content can look identical between
+  // two never-enrolled models otherwise.
+  setTimeout(function(){
+    var card = document.getElementById('cm-enrollments-card');
+    if (card) {
+      card.scrollIntoView({ behavior:'smooth', block:'nearest' });
+      card.style.transition = 'none';
+      card.style.boxShadow = '0 0 0 2px #00c2e0';
+      setTimeout(function(){
+        card.style.transition = 'box-shadow 0.6s ease';
+        card.style.boxShadow = 'none';
+      }, 50);
+    }
+  }, 30);
 };
 
 async function cmLoadEnrollments(modelId) {
