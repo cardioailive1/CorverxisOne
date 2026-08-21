@@ -398,14 +398,18 @@ function _employeeOptions(){
 }
 
 // ── Add Employee ──────────────────────────────────────────────
-function hrimOpenAddEmployee(){
-  var deptNameToId = {}; // populated after we know live dept ids — refetch quickly
+async function hrimOpenAddEmployee(){
+  // Refresh on-demand rather than trusting the single fire-and-forget fetch
+  // at page load — that one can lose the race against this click on first
+  // load, leaving the dropdown empty forever with no retry.
+  await _hrimRefreshDeptCache();
+  var deptOpts = _deptOptionsWithIds();
   hrimOpenModal('Add Employee',
     _field('First name','firstName','text') +
     _field('Last name','lastName','text') +
     _field('Email','email','email') +
     _field('Job title','jobTitle','text') +
-    _field('Department','departmentId','select',{ options:_deptOptionsWithIds(), placeholder:'Select department', required:false }) +
+    _field('Department','departmentId','select',{ options:deptOpts, placeholder: deptOpts.length ? 'Select department' : 'No departments found', required:false }) +
     _field('Location','location','text',{ required:false }) +
     _field('Employment type','employmentType','select',{ options:['FULL_TIME','PART_TIME','CONTRACT','INTERN'], required:false }) +
     _field('Hire date','hireDate','date') +
@@ -423,10 +427,12 @@ function _deptOptionsWithIds(){
 }
 
 // ── New Requisition ──────────────────────────────────────────
-function hrimOpenNewReq(){
+async function hrimOpenNewReq(){
+  await _hrimRefreshDeptCache();
+  var deptOpts = _deptOptionsWithIds();
   hrimOpenModal('New Requisition',
     _field('Role title','title','text') +
-    _field('Department','departmentId','select',{ options:_deptOptionsWithIds(), placeholder:'Select department', required:false }) +
+    _field('Department','departmentId','select',{ options:deptOpts, placeholder: deptOpts.length ? 'Select department' : 'No departments found', required:false }) +
     _field('Location','location','text',{ required:false }) +
     _field('Hiring manager','hiringManager','text',{ required:false }) +
     _field('Target hire date','targetHireDate','date',{ required:false }),

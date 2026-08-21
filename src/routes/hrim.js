@@ -202,21 +202,47 @@ router.post('/hrim/employees', authenticate, requireRole('MANAGER'), async (req,
   try {
     const orgId = req.user.orgId;
     const b = req.body;
-    const count = await prisma.hrEmployee.count({ where: { orgId } });
-    const employeeCode = 'EMP-' + String(count+1).padStart(4,'0');
-    const emp = await prisma.hrEmployee.create({
-      data: {
-        orgId, employeeCode,
-        firstName: b.firstName, lastName: b.lastName, email: b.email,
-        jobTitle: b.jobTitle, departmentId: b.departmentId || null,
-        managerId: b.managerId || null, location: b.location || null,
-        employmentType: b.employmentType || 'FULL_TIME',
-        status: b.status || 'ACTIVE',
-        hireDate: b.hireDate ? new Date(b.hireDate) : new Date(),
-        baseSalary: b.baseSalary != null ? Number(b.baseSalary) : null,
-        currency: b.currency || 'USD',
+
+    const baseData = {
+      orgId,
+      firstName: b.firstName, lastName: b.lastName, email: b.email,
+      jobTitle: b.jobTitle, departmentId: b.departmentId || null,
+      managerId: b.managerId || null, location: b.location || null,
+      employmentType: b.employmentType || 'FULL_TIME',
+      status: b.status || 'ACTIVE',
+      hireDate: b.hireDate ? new Date(b.hireDate) : new Date(),
+      baseSalary: b.baseSalary != null ? Number(b.baseSalary) : null,
+      currency: b.currency || 'USD',
+    };
+
+    // employeeCode generation is race-safe and collision-tolerant: a plain
+    // count()-based number can collide with pre-seeded records, terminated
+    // employees still counted, or two requests landing at once. Retry with
+    // a fresh candidate on a uniqueness conflict rather than failing outright.
+    let emp = null;
+    let lastErr = null;
+    for (let attempt = 0; attempt < 6 && !emp; attempt++) {
+      const count = await prisma.hrEmployee.count({ where: { orgId } });
+      const suffix = count + 1 + attempt; // shifts forward each retry to dodge the same collision
+      const employeeCode = 'EMP-' + String(suffix).padStart(4, '0');
+      try {
+        emp = await prisma.hrEmployee.create({ data: { ...baseData, employeeCode } });
+      } catch (err) {
+        lastErr = err;
+        const target = err.meta && err.meta.target ? String(err.meta.target) : '';
+        if (err.code === 'P2002' && target.includes('email')) {
+          return res.status(400).json({ error: 'An employee with this email already exists.' });
+        }
+        if (err.code !== 'P2002') throw err; // not a uniqueness collision — a real error, don't retry
+        // else: employeeCode collision — loop and try the next number
       }
-    });
+    }
+    if (!emp) {
+      // Extremely unlikely fallback: guaranteed-unique via timestamp suffix
+      const employeeCode = 'EMP-' + Date.now().toString().slice(-6);
+      emp = await prisma.hrEmployee.create({ data: { ...baseData, employeeCode } });
+    }
+
     if (b.departmentId) {
       await prisma.hrDepartment.update({
         where: { id: b.departmentId },
