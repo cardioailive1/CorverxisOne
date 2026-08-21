@@ -3264,7 +3264,7 @@ tr:hover td{background:rgba(255,255,255,0.02);}
   <div class="card" style="padding:0;overflow:hidden">
     <div class="ct" style="padding:14px 14px 0" id="cm-enrollments-title">Enrollments</div>
     <table><thead><tr><th>Employee</th><th>Course</th><th>Provider</th><th>Status</th><th>Due Date</th></tr></thead>
-    <tbody id="cm-training-tbody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Select a training model above to view its enrollments.</td></tr></tbody></table>
+    <tbody id="cm-training-tbody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Create or load a training model above, then click it to view enrollments here.</td></tr></tbody></table>
   </div>
 </div>
 
@@ -12974,7 +12974,11 @@ function cmRenderTrainingModels() {
   var grid = document.getElementById('cm-training-models-grid');
   if (!grid) return;
   if (!CM_TRAINING_MODELS.length) {
-    grid.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:20px;grid-column:1/-1">No training models yet. Click <b>+ New Training Model</b> to create the first AI upskilling curriculum.</div>';
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;background:rgba(0,194,224,.05);border:1px dashed rgba(0,194,224,.25);border-radius:10px">' +
+      '<div style="font-size:12px;color:var(--muted);margin-bottom:12px">No training models yet.</div>' +
+      '<button onclick="cmSeedDefaultTrainingModels()" id="cm-seed-defaults-btn" style="padding:9px 18px;background:#00c2e0;border:none;border-radius:7px;color:#0a1628;font-size:12px;font-weight:700;cursor:pointer">Load Default AI Training Curriculum (5 models)</button>' +
+      '<div style="font-size:10px;color:var(--muted);margin-top:8px">Or build your own with <b>+ New Training Model</b> above</div>' +
+    '</div>';
     return;
   }
   grid.innerHTML = CM_TRAINING_MODELS.map(function(m){
@@ -13225,6 +13229,19 @@ window.cmOpenAddRisk = function(){
       cmShowTab('risks');
     }, 'Add Risk'
   );
+};
+
+window.cmSeedDefaultTrainingModels = async function(){
+  var btn = document.getElementById('cm-seed-defaults-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
+  try {
+    var result = await _cmPost('/api/v1/change/training-models/seed-defaults', {});
+    await cmFetchTrainingModels();
+    cmShowTab('training');
+  } catch(e) {
+    alert('Could not load default training models: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Load Default AI Training Curriculum (5 models)'; }
+  }
 };
 
 window.cmOpenNewTrainingModel = function(){

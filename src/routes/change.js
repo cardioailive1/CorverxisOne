@@ -157,6 +157,53 @@ router.patch('/change/risks/:id', authenticate, requireRole('MANAGER'), async (r
 });
 
 // ── TRAINING MODELS — structured AI upskilling curricula ──────
+const DEFAULT_TRAINING_MODELS = [
+  {
+    pillar: 'PREDICTIVE_MAINTENANCE', title: 'Predictive Maintenance for Operators',
+    description: 'How to read AI-flagged RUL alerts, interpret vibration/temperature trend charts, and escalate before a machine crash — not after.',
+    format: 'Hands-On Shadow', durationHours: 3, targetRole: 'Machine Operators, Maintenance Technicians',
+  },
+  {
+    pillar: 'QUALITY_CONTROL', title: 'Computer Vision QC Certification',
+    description: 'Operating the AI optical inspection stations, understanding pass/fail confidence scores, and handling edge cases the model flags for human review.',
+    format: 'Instructor-Led', durationHours: 4, targetRole: 'Quality Inspectors, Line Operators',
+  },
+  {
+    pillar: 'SUPPLY_CHAIN', title: 'AI-Assisted Supply & Inventory Planning',
+    description: 'Reading AI demand forecasts, adjusting reorder points, and validating model recommendations against supplier lead-time reality.',
+    format: 'Self-Paced', durationHours: 2.5, targetRole: 'Supply Chain Analysts, Buyers',
+  },
+  {
+    pillar: 'PROCESS_OPTIMIZATION', title: 'Process Data & Golden Batch Analytics',
+    description: 'Understanding how the ML model identifies optimal speed/feed/coolant combinations, and how to validate findings on the floor.',
+    format: 'Self-Paced', durationHours: 3, targetRole: 'Process Engineers, Line Supervisors',
+  },
+  {
+    pillar: 'OTHER', title: 'AI Literacy 101 — Upskilling, Not Replacing',
+    description: 'Company-wide foundation course: what AI does and doesn\'t do on the floor, how it makes jobs safer, and how to raise concerns.',
+    format: 'Self-Paced', durationHours: 1, targetRole: 'All Employees',
+  },
+];
+
+// Bypasses the whole build/seed pipeline entirely — creates the default
+// training curriculum via a direct authenticated call from the running
+// app. Idempotent: safe to click more than once.
+router.post('/change/training-models/seed-defaults', authenticate, requireRole('MANAGER'), async (req, res) => {
+  try {
+    const orgId = req.user.orgId;
+    const existing = await prisma.changeTrainingModel.count({ where: { orgId } });
+    if (existing > 0) {
+      const rows = await prisma.changeTrainingModel.findMany({ where: { orgId } });
+      return res.json({ data: rows, created: 0, message: `${existing} training model(s) already exist — nothing new created.` });
+    }
+    const created = [];
+    for (const t of DEFAULT_TRAINING_MODELS) {
+      created.push(await prisma.changeTrainingModel.create({ data: { orgId, ...t } }));
+    }
+    res.status(201).json({ data: created, created: created.length, message: `${created.length} default training models created.` });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.get('/change/training-models', authenticate, async (req, res) => {
   try {
     const orgId = req.user.orgId;

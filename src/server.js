@@ -192,25 +192,25 @@ function requireSession(req, res, next) {
 
 app.get('/', requireSession, (req, res) => {
   const f = path.join(PUBLIC, 'corverxis-one.html');
-  if (fs.existsSync(f)) return res.sendFile(f);
+  if (fs.existsSync(f)) { res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); res.set('Pragma', 'no-cache'); res.set('Expires', '0'); return res.sendFile(f); }
   res.status(404).send('corverxis-one.html not found in public/');
 });
 
 app.get('/sensormodel', requireSession, (req, res) => {
   const f = path.join(PUBLIC, 'sensormodel.html');
-  if (fs.existsSync(f)) return res.sendFile(f);
+  if (fs.existsSync(f)) { res.set('Cache-Control', 'no-store'); return res.sendFile(f); }
   res.status(404).send('sensormodel.html not found in public/');
 });
 
 app.get('/vision', requireSession, (req, res) => {
   const f = path.join(PUBLIC, 'corverxis-vision.html');
-  if (fs.existsSync(f)) return res.sendFile(f);
+  if (fs.existsSync(f)) { res.set('Cache-Control', 'no-store'); return res.sendFile(f); }
   res.status(404).send('corverxis-vision.html not found in public/');
 });
 
 app.get('/hrim', requireSession, (req, res) => {
   const f = path.join(PUBLIC, 'corverxis-hrim.html');
-  if (fs.existsSync(f)) return res.sendFile(f);
+  if (fs.existsSync(f)) { res.set('Cache-Control', 'no-store'); return res.sendFile(f); }
   res.status(404).send('corverxis-hrim.html not found in public/');
 });
 
