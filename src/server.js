@@ -214,6 +214,12 @@ app.get('/hrim', requireSession, (req, res) => {
   res.status(404).send('corverxis-hrim.html not found in public/');
 });
 
+app.get('/academy', requireSession, (req, res) => {
+  const f = path.join(PUBLIC, 'corverxis-academy.html');
+  if (fs.existsSync(f)) { res.set('Cache-Control', 'no-store'); return res.sendFile(f); }
+  res.status(404).send('corverxis-academy.html not found in public/');
+});
+
 // ── Protected API routes ──────────────────────────────────────────────────────
 app.get('/api/status', authenticate, async (req, res) => {
   try {

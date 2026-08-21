@@ -543,6 +543,20 @@ router.get('/hrim/trainings', authenticate, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Single-record lookup — used by CorverxisAcademy to show whose training
+// record it's tracking and to know the current status on load.
+router.get('/hrim/trainings/:id', authenticate, async (req, res) => {
+  try {
+    const orgId = req.user.orgId;
+    const t = await prisma.hrTraining.findFirst({
+      where: { id: req.params.id, orgId },
+      include: { employee: { select: { firstName:true,lastName:true,jobTitle:true } } },
+    });
+    if (!t) return res.status(404).json({ error: 'Training record not found' });
+    res.json({ data: t });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.post('/hrim/trainings', authenticate, requireRole('MANAGER'), async (req, res) => {
   try {
     const orgId = req.user.orgId;

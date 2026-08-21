@@ -161,27 +161,57 @@ const DEFAULT_TRAINING_MODELS = [
   {
     pillar: 'PREDICTIVE_MAINTENANCE', title: 'Predictive Maintenance for Operators',
     description: 'How to read AI-flagged RUL alerts, interpret vibration/temperature trend charts, and escalate before a machine crash — not after.',
-    format: 'Hands-On Shadow', durationHours: 3, targetRole: 'Machine Operators, Maintenance Technicians',
+    format: 'Hands-On Shadow', durationHours: 3, targetRole: 'Machine Operators, Maintenance Technicians', courseSlug: 'predictive-maintenance',
   },
   {
     pillar: 'QUALITY_CONTROL', title: 'Computer Vision QC Certification',
     description: 'Operating the AI optical inspection stations, understanding pass/fail confidence scores, and handling edge cases the model flags for human review.',
-    format: 'Instructor-Led', durationHours: 4, targetRole: 'Quality Inspectors, Line Operators',
+    format: 'Instructor-Led', durationHours: 4, targetRole: 'Quality Inspectors, Line Operators', courseSlug: 'vision-qc',
   },
   {
     pillar: 'SUPPLY_CHAIN', title: 'AI-Assisted Supply & Inventory Planning',
     description: 'Reading AI demand forecasts, adjusting reorder points, and validating model recommendations against supplier lead-time reality.',
-    format: 'Self-Paced', durationHours: 2.5, targetRole: 'Supply Chain Analysts, Buyers',
+    format: 'Self-Paced', durationHours: 2.5, targetRole: 'Supply Chain Analysts, Buyers', courseSlug: 'supply-chain-ai',
   },
   {
     pillar: 'PROCESS_OPTIMIZATION', title: 'Process Data & Golden Batch Analytics',
     description: 'Understanding how the ML model identifies optimal speed/feed/coolant combinations, and how to validate findings on the floor.',
-    format: 'Self-Paced', durationHours: 3, targetRole: 'Process Engineers, Line Supervisors',
+    format: 'Self-Paced', durationHours: 3, targetRole: 'Process Engineers, Line Supervisors', courseSlug: 'golden-batch',
   },
   {
     pillar: 'OTHER', title: 'AI Literacy 101 — Upskilling, Not Replacing',
     description: 'Company-wide foundation course: what AI does and doesn\'t do on the floor, how it makes jobs safer, and how to raise concerns.',
-    format: 'Self-Paced', durationHours: 1, targetRole: 'All Employees',
+    format: 'Self-Paced', durationHours: 1, targetRole: 'All Employees', courseSlug: 'ai-literacy',
+  },
+  {
+    pillar: 'COMPLIANCE', title: 'IATF 16949 Fundamentals',
+    description: 'The automotive quality management standard governing how Corverxis builds precision parts — APQP, PPAP, FMEA, MSA, SPC, and corrective action.',
+    format: 'Instructor-Led', durationHours: 4, targetRole: 'All Production & Quality Staff', isRequired: true, courseSlug: 'iatf-16949',
+  },
+  {
+    pillar: 'TECHNICAL', title: 'LLM Fine-Tuning for Manufacturing AI',
+    description: 'How Corverxis adapts large language models to manufacturing-specific tasks like NCR drafting and work order summarization.',
+    format: 'Self-Paced', durationHours: 5, targetRole: 'Engineering, AI Ops, Quality', courseSlug: 'llm-finetuning',
+  },
+  {
+    pillar: 'OPERATIONS', title: 'Lean Six Sigma Green Belt',
+    description: 'Core process-improvement tools — the 8 wastes, DMAIC, basic statistical process control, and running a Kaizen event.',
+    format: 'Instructor-Led', durationHours: 6, targetRole: 'Operations, Process Engineering', courseSlug: 'lean-six-sigma',
+  },
+  {
+    pillar: 'LEADERSHIP', title: 'People Management Essentials',
+    description: 'Core supervisory skills — setting expectations, giving feedback, difficult conversations, delegation, and psychological safety.',
+    format: 'Instructor-Led', durationHours: 5, targetRole: 'Supervisors & Managers', isRequired: true, courseSlug: 'people-management',
+  },
+  {
+    pillar: 'SAFETY', title: 'Workplace Safety & OSHA',
+    description: 'OSHA rights and responsibilities, Lockout/Tagout, machine guarding, hazard communication, and incident/near-miss reporting.',
+    format: 'Instructor-Led', durationHours: 3, targetRole: 'All Plant Floor Employees', isRequired: true, courseSlug: 'workplace-safety',
+  },
+  {
+    pillar: 'TECHNICAL', title: 'Data-Driven Decision Making',
+    description: 'Reading dashboards critically, correlation vs. causation, basic statistical literacy, and making a data-backed proposal.',
+    format: 'Self-Paced', durationHours: 3, targetRole: 'Analysts, Supervisors, Engineers', courseSlug: 'data-driven-decisions',
   },
 ];
 
@@ -236,6 +266,7 @@ router.post('/change/training-models', authenticate, requireRole('MANAGER'), asy
         orgId, pillar: b.pillar, title: b.title, description: b.description || null,
         format: b.format || 'Self-Paced', durationHours: b.durationHours != null ? Number(b.durationHours) : 2,
         targetRole: b.targetRole || null, status: b.status || 'ACTIVE',
+        isRequired: !!b.isRequired,
       }
     });
     res.status(201).json({ data: row });

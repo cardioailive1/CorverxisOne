@@ -534,14 +534,31 @@ function hrimOpenRequestLeave(){
 }
 
 // ── Assign Training ──────────────────────────────────────────
-function hrimOpenAssignTraining(){
+async function hrimOpenAssignTraining(){
+  var modelOpts = _hrimLearnModels.length
+    ? _hrimLearnModels.map(function(m){ return { value:m.id, label:m.title }; })
+    : [];
+  if (!modelOpts.length) {
+    // Ensure the catalog is loaded even if opened before visiting the Learning page
+    try {
+      var r = await fetch('/api/v1/change/training-models', { credentials:'same-origin' });
+      if (r.ok) { _hrimLearnModels = (await r.json()).data || []; }
+    } catch(e) {}
+    modelOpts = _hrimLearnModels.map(function(m){ return { value:m.id, label:m.title }; });
+  }
+  if (!modelOpts.length) {
+    alert('No training models exist yet. Go to Learning & Development and click "Load Default AI Training Curriculum" first.');
+    return;
+  }
   hrimOpenModal('Assign Training',
     _field('Employee','employeeId','select',{ options:_employeeOptions(), placeholder:'Select employee' }) +
-    _field('Course name','courseName','text') +
-    _field('Provider','provider','text',{ required:false }) +
+    _field('Training model','trainingModelId','select',{ options:modelOpts, placeholder:'Select course' }) +
     _field('Due date','dueDate','date',{ required:false }),
     async function(payload){
-      await _hrimPost('/api/v1/hrim/trainings', payload);
+      var modelId = payload.trainingModelId;
+      delete payload.trainingModelId;
+      await _hrimPost('/api/v1/change/training-models/'+modelId+'/assign', payload);
+      if (typeof hrimLoadLearnModels === 'function') await hrimLoadLearnModels();
     }, 'Assign Training'
   );
 }
@@ -1102,40 +1119,160 @@ RENDERERS.perf = function(el){
 };
 
 // ── LEARNING & DEVELOPMENT ───────────────────────────────────
+// ── LEARNING & DEVELOPMENT — live from ChangeTrainingModel, shared with CorverxisAcademy ──
+var HRIM_PILLAR_TO_ACADEMY_SLUG = {
+  PREDICTIVE_MAINTENANCE: 'predictive-maintenance',
+  QUALITY_CONTROL: 'vision-qc',
+  SUPPLY_CHAIN: 'supply-chain-ai',
+  PROCESS_OPTIMIZATION: 'golden-batch',
+  OTHER: 'ai-literacy',
+};
+var HRIM_PILLAR_LABELS = {
+  PREDICTIVE_MAINTENANCE: 'Predictive Maintenance', QUALITY_CONTROL: 'Quality Control (Vision)',
+  SUPPLY_CHAIN: 'Supply Chain', PROCESS_OPTIMIZATION: 'Process Optimization', OTHER: 'Company-Wide',
+  COMPLIANCE: 'Compliance', LEADERSHIP: 'Leadership', SAFETY: 'Safety', OPERATIONS: 'Operations', TECHNICAL: 'Technical',
+};
+var HRIM_PILLAR_COLORS = {
+  PREDICTIVE_MAINTENANCE: '#8b5cf6', QUALITY_CONTROL: '#00c2e0',
+  SUPPLY_CHAIN: '#f59e0b', PROCESS_OPTIMIZATION: '#22c55e', OTHER: '#00c2e0',
+  COMPLIANCE: '#ef4444', LEADERSHIP: '#8b5cf6', SAFETY: '#f59e0b', OPERATIONS: '#22c55e', TECHNICAL: '#00c2e0',
+};
+var _hrimLearnModels = [];
+var _hrimSelectedModelId = null;
+
 RENDERERS.learn = function(el){
-  var courses = [
-    {name:'IATF 16949 Fundamentals', category:'Compliance', enrolled:214, completion:87, required:true},
-    {name:'LLM Fine-Tuning for Manufacturing AI', category:'Technical', enrolled:38, completion:62, required:false},
-    {name:'Lean Six Sigma Green Belt', category:'Operations', enrolled:96, completion:74, required:false},
-    {name:'People Management Essentials', category:'Leadership', enrolled:112, completion:91, required:true},
-    {name:'Workplace Safety & OSHA', category:'Compliance', enrolled:HEADCOUNT, completion:96, required:true},
-    {name:'Data-Driven Decision Making', category:'Technical', enrolled:64, completion:58, required:false},
-  ];
   el.innerHTML =
     '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">' +
-      '<div><div class="pt">Learning &amp; Development</div><div class="ps">Corverxis Academy — courses, certifications, skills matrix</div></div>' +
+      '<div><div class="pt">Learning &amp; Development</div><div class="ps">AI upskilling curriculum — same courses and progress as CorverxisAcademy</div></div>' +
       '<button onclick="hrimOpenAssignTraining()" style="padding:8px 16px;background:#00c2e0;border:none;border-radius:7px;color:#0a1628;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">+ Assign Training</button>' +
     '</div>' +
-    '<div class="kg">' +
-      _kpi('Active Learners', 892, 'var(--ocean)', 'This quarter') +
-      _kpi('Courses Available', 47, 'var(--text)', '12 tracks') +
-      _kpi('Avg Completion Rate', '78%', 'var(--green)', 'Required courses') +
-      _kpi('Certifications Earned (YTD)', 156, 'var(--purple)', 'Internal + external') +
-      _kpi('L&D Spend per Employee', _fmtMoney(1240), 'var(--text)', 'Annual budget') +
-      _kpi('Skills Gap Alerts', 3, 'var(--amber)', 'AI-flagged pods') +
+    '<div class="kg" id="hrim-learn-kpis">' +
+      _kpi('Training Models', '—', 'var(--ocean)', 'Loading…') +
+      _kpi('Total Enrollments', '—', 'var(--text)', '') +
+      _kpi('Avg Completion Rate', '—', 'var(--green)', '') +
+      _kpi('Completed (all time)', '—', 'var(--purple)', '') +
     '</div>' +
-    '<div class="card" style="padding:0;overflow:hidden">' +
-      '<div class="ct" style="padding:14px 14px 0">Course Catalog</div>' +
-      '<table><thead><tr><th>Course</th><th>Category</th><th>Enrolled</th><th>Completion</th><th>Required</th></tr></thead><tbody>' +
-      courses.map(function(c){
-        return '<tr><td style="color:var(--text);font-weight:600">'+c.name+'</td><td><span class="badge info">'+c.category+'</span></td>' +
-          '<td>'+c.enrolled+'</td>' +
-          '<td><div style="display:flex;align-items:center;gap:6px"><div class="progress-bar" style="width:80px"><div class="progress-fill" style="width:'+c.completion+'%;background:'+(c.completion>80?'var(--green)':c.completion>60?'var(--ocean)':'var(--amber)')+'"></div></div><span style="font-size:10.5px">'+c.completion+'%</span></div></td>' +
-          '<td>'+(c.required?'<span class="badge warn">Required</span>':'<span class="badge info">Elective</span>')+'</td></tr>';
-      }).join('') +
-      '</tbody></table>' +
+    '<div id="hrim-learn-models-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:16px">' +
+      '<div style="color:var(--muted);font-size:12px;padding:20px">Loading training models…</div>' +
+    '</div>' +
+    '<div class="card" style="padding:0;overflow:hidden" id="hrim-learn-enroll-card">' +
+      '<div class="ct" style="padding:14px 14px 0" id="hrim-learn-enroll-title">Enrollments</div>' +
+      '<table><thead><tr><th>Employee</th><th>Course</th><th>Status</th><th>Due Date</th><th>Action</th></tr></thead>' +
+      '<tbody id="hrim-learn-enroll-tbody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Select a training model above.</td></tr></tbody></table>' +
     '</div>';
+  hrimLoadLearnModels();
 };
+
+async function hrimLoadLearnModels(){
+  var grid = document.getElementById('hrim-learn-models-grid');
+  if (!grid) return;
+  try {
+    var r = await fetch('/api/v1/change/training-models', { credentials:'same-origin' });
+    if (!r.ok) throw new Error('unavailable');
+    _hrimLearnModels = (await r.json()).data || [];
+  } catch(e) { _hrimLearnModels = []; }
+
+  var totalEnroll = _hrimLearnModels.reduce(function(a,m){return a+m.enrollmentCount;},0);
+  var totalDone   = _hrimLearnModels.reduce(function(a,m){return a+m.completedCount;},0);
+  var avgPct      = totalEnroll ? Math.round((totalDone/totalEnroll)*1000)/10 : 0;
+  var kpiEl = document.getElementById('hrim-learn-kpis');
+  if (kpiEl) {
+    kpiEl.innerHTML =
+      _kpi('Training Models', _hrimLearnModels.length, 'var(--ocean)', 'Live catalog') +
+      _kpi('Total Enrollments', totalEnroll, 'var(--text)', 'Across all models') +
+      _kpi('Avg Completion Rate', avgPct+'%', 'var(--green)', '') +
+      _kpi('Completed (all time)', totalDone, 'var(--purple)', '');
+  }
+
+  if (!_hrimLearnModels.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;background:rgba(0,194,224,.05);border:1px dashed rgba(0,194,224,.25);border-radius:10px">' +
+      '<div style="font-size:12px;color:var(--muted);margin-bottom:12px">No training models yet.</div>' +
+      '<button onclick="hrimSeedDefaultTrainingModels()" id="hrim-seed-tm-btn" style="padding:9px 18px;background:#00c2e0;border:none;border-radius:7px;color:#0a1628;font-size:12px;font-weight:700;cursor:pointer">Load Default Training Curriculum (11 courses)</button>' +
+    '</div>';
+    return;
+  }
+
+  grid.innerHTML = _hrimLearnModels.map(function(m){
+    var col = HRIM_PILLAR_COLORS[m.pillar] || '#6b7280';
+    var selected = m.id === _hrimSelectedModelId;
+    return '<div class="card" style="cursor:pointer;margin:0;'+(selected?'border:2px solid #00c2e0;background:rgba(0,194,224,.06);':'')+'" onclick="hrimSelectLearnModel(\''+m.id+'\')">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">' +
+        '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+col+'22;color:'+col+'">'+HRIM_PILLAR_LABELS[m.pillar]+'</span>' +
+        (selected?'<span style="font-size:10px;font-weight:700;color:#00c2e0">✓ SELECTED</span>':'<span style="font-size:10px;color:var(--muted)">'+m.format+' · '+m.durationHours+'h</span>') +
+      '</div>' +
+      '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px">'+m.title+(m.isRequired?' <span style="font-size:9px;font-weight:700;color:#ef4444;vertical-align:middle">● REQUIRED</span>':'')+'</div>' +
+      '<div style="font-size:9px;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:3px"><span>COMPLETION</span><span>'+m.completedCount+' / '+m.enrollmentCount+' enrolled</span></div>' +
+      '<div class="progress-bar"><div class="progress-fill" style="width:'+m.completionPct+'%;background:linear-gradient(90deg,'+col+',#22c55e)"></div></div>' +
+    '</div>';
+  }).join('');
+
+  if (!_hrimSelectedModelId) {
+    hrimSelectLearnModel(_hrimLearnModels[0].id);
+  } else {
+    hrimLoadLearnEnrollments(_hrimSelectedModelId);
+  }
+}
+
+async function hrimSeedDefaultTrainingModels(){
+  var btn = document.getElementById('hrim-seed-tm-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
+  try {
+    await _hrimPost('/api/v1/change/training-models/seed-defaults', {});
+    await hrimLoadLearnModels();
+  } catch(e) {
+    alert('Could not load default training models: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Load Default Training Curriculum (11 courses)'; }
+  }
+}
+
+window.hrimSelectLearnModel = function(id){
+  _hrimSelectedModelId = id;
+  hrimLoadLearnModels();
+};
+
+async function hrimLoadLearnEnrollments(modelId){
+  var tbody = document.getElementById('hrim-learn-enroll-tbody');
+  var titleEl = document.getElementById('hrim-learn-enroll-title');
+  if (!tbody) return;
+  var model = _hrimLearnModels.find(function(m){ return m.id===modelId; });
+  var slug = model ? (model.courseSlug || HRIM_PILLAR_TO_ACADEMY_SLUG[model.pillar]) : null;
+  if (titleEl) titleEl.textContent = 'Enrollments — ' + (model ? model.title : '');
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Loading…</td></tr>';
+  try {
+    var r = await fetch('/api/v1/change/training-models/'+modelId+'/enrollments', { credentials:'same-origin' });
+    if (!r.ok) throw new Error('unavailable');
+    var rows = (await r.json()).data || [];
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">No one enrolled yet. Click <b>+ Assign Training</b> above.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(function(t){
+      var name = t.employee ? (t.employee.firstName+' '+t.employee.lastName) : '—';
+      var statusCol = t.status==='COMPLETED'?'ok':t.status==='IN_PROGRESS'?'info':'warn';
+      var launchLabel = t.status==='IN_PROGRESS' ? 'Continue Training →' : 'Start Training →';
+      var action = t.status==='COMPLETED'
+        ? '<span style="font-size:10px;color:#22c55e">✓ Done'+(t.completedAt?' · '+t.completedAt.slice(0,10):'')+'</span>'
+        : (slug
+            ? '<button onclick="hrimOpenAcademy(\''+t.id+'\',\''+slug+'\')" style="padding:4px 10px;background:rgba(0,194,224,.12);border:1px solid rgba(0,194,224,.35);border-radius:5px;color:#00c2e0;font-size:10px;font-weight:700;cursor:pointer">'+launchLabel+'</button>'
+            : '<span style="font-size:10px;color:var(--muted)">No course linked</span>');
+      return '<tr><td style="color:var(--text)">'+name+'</td><td>'+t.courseName+'</td>' +
+        '<td><span class="badge '+statusCol+'">'+t.status.replace('_',' ')+'</span></td>' +
+        '<td>'+(t.dueDate?t.dueDate.slice(0,10):'—')+'</td><td>'+action+'</td></tr>';
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Enrollment data unavailable right now.</td></tr>';
+  }
+}
+
+// Opens the real CorverxisAcademy course content in a new tab, deep-linked
+// to the exact training record and course. HRIM can run standalone (not
+// always inside the CorverxisONE shell), so a new tab is the reliable
+// choice here rather than assuming a parent frame exists to navigate.
+window.hrimOpenAcademy = function(trainingId, courseSlug){
+  window.open('/academy?trainingId='+encodeURIComponent(trainingId)+'&course='+encodeURIComponent(courseSlug), '_blank');
+};
+
+
 
 // ── COMPENSATION PLANNING ────────────────────────────────────
 RENDERERS.comp = function(el){

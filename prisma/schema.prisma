@@ -1116,6 +1116,11 @@ enum ChangePillar {
   SUPPLY_CHAIN
   PROCESS_OPTIMIZATION
   OTHER
+  COMPLIANCE
+  LEADERSHIP
+  SAFETY
+  OPERATIONS
+  TECHNICAL
 }
 
 enum ChangePhase {
@@ -1186,6 +1191,8 @@ model ChangeTrainingModel {
   format        String   @default("Self-Paced")  // Self-Paced / Instructor-Led / Hands-On Shadow
   durationHours Float    @default(2)
   targetRole    String?  // e.g. "Machine Operators", "Quality Inspectors"
+  isRequired    Boolean  @default(false)
+  courseSlug    String?  // explicit CorverxisAcademy course slug — pillar alone is ambiguous when multiple models share one pillar
   status        String   @default("ACTIVE")       // ACTIVE / DRAFT / RETIRED
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
