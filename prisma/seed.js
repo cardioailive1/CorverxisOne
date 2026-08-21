@@ -616,7 +616,22 @@ main()
   .then(() => seedDynamicData())
   .then(() => seedInventory())
   .then(() => seedProcessImprovement())
-  .then(() => require('./seed-hrim').seedHrim())
-  .then(() => require('./seed-change').seedChange())
+  .then(async () => {
+    // Newer, additive modules (HRIM, Change Management) are wrapped so a
+    // failure in either NEVER fails the whole build. Render's build command
+    // is `... && npx prisma db seed` — if this script exits non-zero, the
+    // ENTIRE deploy fails and Render silently keeps serving the previous
+    // version. That's a much worse outcome than one section skipping.
+    try {
+      await require('./seed-hrim').seedHrim();
+    } catch (e) {
+      console.error('⚠ HRIM seed error (non-fatal, deploy continues):', e.message);
+    }
+    try {
+      await require('./seed-change').seedChange();
+    } catch (e) {
+      console.error('⚠ Change Management seed error (non-fatal, deploy continues):', e.message);
+    }
+  })
   .catch((e) => { console.error('❌ Seed failed:', e); process.exit(1); })
   .finally(async () => { await prisma.$disconnect(); });

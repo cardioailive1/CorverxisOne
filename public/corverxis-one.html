@@ -12867,6 +12867,17 @@ window.cmShowTab = function(tab) {
 };
 
 // ── INITIATIVES ──────────────────────────────────────────────
+function _cmTimeAgo(iso){
+  if (!iso) return '';
+  var diffMs = Date.now() - new Date(iso).getTime();
+  var mins = Math.floor(diffMs/60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins+'m ago';
+  var hrs = Math.floor(mins/60);
+  if (hrs < 24) return hrs+'h ago';
+  return Math.floor(hrs/24)+'d ago';
+}
+
 function cmRenderInitiatives() {
   var grid = document.getElementById('cm-initiatives-grid');
   if (!grid) return;
@@ -12893,7 +12904,10 @@ function cmRenderInitiatives() {
     return '<div class="cm-initiative-card"'+cardClick+'>' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">' +
         '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+col+'22;color:'+col+'">'+PILLAR_LABELS[i.pillar]+'</span>' +
-        '<span style="font-size:10px;font-weight:700;color:'+statusCol+'">'+i.status.replace('_',' ')+'</span>' +
+        '<div style="display:flex;align-items:center;gap:5px">' +
+          '<div style="width:6px;height:6px;border-radius:50%;background:'+statusCol+';animation:pulse 2s infinite"></div>' +
+          '<span style="font-size:10px;font-weight:700;color:'+statusCol+'">'+i.status.replace('_',' ')+'</span>' +
+        '</div>' +
       '</div>' +
       '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">'+i.title+'</div>' +
       '<div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.4">'+(i.description||'')+'</div>' +
@@ -12905,10 +12919,11 @@ function cmRenderInitiatives() {
           '<div class="progress-bar"><div class="progress-fill" style="width:'+i.sentimentScore+'%;background:'+(i.sentimentScore>=70?'#22c55e':i.sentimentScore>=50?'#f59e0b':'#ef4444')+'"></div></div>' +
           '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+i.sentimentScore+'/100</div></div>' +
       '</div>' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--muted)">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--muted);margin-bottom:6px">' +
         '<span>'+PHASE_LABELS[i.phase]+' · '+(i.ownerName||'Unassigned')+'</span>' +
-        (moduleLabel ? '<span onclick="event.stopPropagation();nav(\''+i.linkedModule+'\')" style="padding:4px 10px;background:rgba(0,194,224,.15);border:1px solid rgba(0,194,224,.4);border-radius:5px;color:#00c2e0;font-size:10px;font-weight:700;cursor:pointer">Open '+moduleLabel+' →</span>' : '') +
+        '<span style="color:#4b5563">Updated '+_cmTimeAgo(i.updatedAt)+'</span>' +
       '</div>' +
+      (moduleLabel ? '<div onclick="event.stopPropagation();nav(\''+i.linkedModule+'\')" style="text-align:center;padding:6px;background:rgba(0,194,224,.15);border:1px solid rgba(0,194,224,.4);border-radius:6px;color:#00c2e0;font-size:11px;font-weight:700;cursor:pointer">Open '+moduleLabel+' →</div>' : '') +
     '</div>';
   }).join('');
 }
@@ -12968,7 +12983,10 @@ function cmRenderTrainingModels() {
     return '<div class="cm-initiative-card" style="cursor:pointer;'+(selected?'border-color:#00c2e0;':'')+'" onclick="cmSelectTrainingModel(\''+m.id+'\')">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">' +
         '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+col+'22;color:'+col+'">'+PILLAR_LABELS[m.pillar]+'</span>' +
-        '<span style="font-size:10px;color:var(--muted)">'+m.format+' · '+m.durationHours+'h</span>' +
+        '<div style="display:flex;align-items:center;gap:5px">' +
+          (m.enrollmentCount>0 ? '<div style="width:6px;height:6px;border-radius:50%;background:#22c55e;animation:pulse 2s infinite"></div>' : '') +
+          '<span style="font-size:10px;color:var(--muted)">'+m.format+' · '+m.durationHours+'h</span>' +
+        '</div>' +
       '</div>' +
       '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">'+m.title+'</div>' +
       '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.4">'+(m.description||'')+'</div>' +
