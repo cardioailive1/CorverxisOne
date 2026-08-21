@@ -26,6 +26,21 @@ model Org {
   counters       Counter[]
   emailLogs      EmailLog[]
   projects       ImprovementProject[]
+  hrDepartments  HrDepartment[]
+  hrEmployees    HrEmployee[]
+  hrRequisitions HrRequisition[]
+  hrCandidates   HrCandidate[]
+  hrReviews      HrPerformanceReview[]
+  hrCompPlans    HrCompPlan[]
+  hrTimeEntries  HrTimeEntry[]
+  hrLeaveRequests HrLeaveRequest[]
+  hrTrainings    HrTraining[]
+  hrPayrollRuns  HrPayrollRun[]
+  hrPayrollProviders HrPayrollProvider[]
+  changeInitiatives  ChangeInitiative[]
+  changeCommunications ChangeCommunication[]
+  changeRisks    ChangeRisk[]
+  changeTrainingModels ChangeTrainingModel[]
 
   @@map("orgs")
 }
@@ -786,4 +801,396 @@ enum WasteType {
   INVENTORY
   MOTION
   EXTRA_PROCESSING
+}
+
+// ══════════════════════════════════════════════════════════════
+//  CorverxisHRIM — Human Capital Intelligence models
+// ══════════════════════════════════════════════════════════════
+
+model HrDepartment {
+  id          String        @id @default(cuid())
+  orgId       String
+  org         Org           @relation(fields: [orgId], references: [id])
+  name        String
+  headCount   Int           @default(0)
+  budgetAnnual Float?
+  costCenter  String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  employees   HrEmployee[]
+  requisitions HrRequisition[]
+
+  @@index([orgId])
+  @@map("hr_departments")
+}
+
+model HrEmployee {
+  id             String    @id @default(cuid())
+  orgId          String
+  org            Org       @relation(fields: [orgId], references: [id])
+  employeeCode   String    @unique
+  firstName      String
+  lastName       String
+  email          String    @unique
+  jobTitle       String
+  departmentId   String?
+  department     HrDepartment? @relation(fields: [departmentId], references: [id])
+  managerId      String?
+  manager        HrEmployee?  @relation("ManagerReports", fields: [managerId], references: [id])
+  reports        HrEmployee[] @relation("ManagerReports")
+  location       String?
+  employmentType EmploymentType @default(FULL_TIME)
+  status         EmployeeStatus @default(ACTIVE)
+  hireDate       DateTime
+  terminationDate DateTime?
+  baseSalary     Float?
+  currency       String    @default("USD")
+  performanceRating Float?
+  attritionRiskScore Float?   // 0-100, computed
+  attritionRiskLabel String?  // Low / Medium / High
+  ptoBalanceHours Float     @default(0)
+  photoSeed      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  reviews        HrPerformanceReview[]
+  compPlans      HrCompPlan[]
+  timeEntries    HrTimeEntry[]
+  leaveRequests  HrLeaveRequest[]
+  trainings      HrTraining[]
+
+  @@index([orgId])
+  @@index([departmentId])
+  @@index([managerId])
+  @@map("hr_employees")
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERN
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  ON_LEAVE
+  TERMINATED
+  PENDING_START
+}
+
+model HrRequisition {
+  id           String   @id @default(cuid())
+  orgId        String
+  org          Org      @relation(fields: [orgId], references: [id])
+  title        String
+  departmentId String?
+  department   HrDepartment? @relation(fields: [departmentId], references: [id])
+  location     String?
+  status       ReqStatus @default(OPEN)
+  targetHireDate DateTime?
+  hiringManager String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  candidates   HrCandidate[]
+
+  @@index([orgId])
+  @@map("hr_requisitions")
+}
+
+enum ReqStatus {
+  OPEN
+  ON_HOLD
+  FILLED
+  CANCELLED
+}
+
+model HrCandidate {
+  id            String   @id @default(cuid())
+  orgId         String
+  org           Org      @relation(fields: [orgId], references: [id])
+  requisitionId String?
+  requisition   HrRequisition? @relation(fields: [requisitionId], references: [id])
+  name          String
+  email         String?
+  stage         AtsStage @default(APPLIED)
+  source        String?
+  appliedAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([orgId])
+  @@index([requisitionId])
+  @@map("hr_candidates")
+}
+
+enum AtsStage {
+  APPLIED
+  SCREEN
+  INTERVIEW
+  OFFER
+  HIRED
+  REJECTED
+}
+
+model HrPerformanceReview {
+  id          String   @id @default(cuid())
+  orgId       String
+  org         Org      @relation(fields: [orgId], references: [id])
+  employeeId  String
+  employee    HrEmployee @relation(fields: [employeeId], references: [id])
+  cycle       String   // e.g. "2026 H1"
+  rating      Float?
+  status      String   @default("IN_PROGRESS")
+  reviewerName String?
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([orgId])
+  @@index([employeeId])
+  @@map("hr_performance_reviews")
+}
+
+model HrCompPlan {
+  id            String   @id @default(cuid())
+  orgId         String
+  org           Org      @relation(fields: [orgId], references: [id])
+  employeeId    String
+  employee      HrEmployee @relation(fields: [employeeId], references: [id])
+  cycle         String
+  currentSalary Float
+  proposedSalary Float?
+  bonusPct      Float?
+  equityUnits   Int?
+  status        String   @default("DRAFT")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([orgId])
+  @@index([employeeId])
+  @@map("hr_comp_plans")
+}
+
+model HrTimeEntry {
+  id         String   @id @default(cuid())
+  orgId      String
+  org        Org      @relation(fields: [orgId], references: [id])
+  employeeId String
+  employee   HrEmployee @relation(fields: [employeeId], references: [id])
+  date       DateTime
+  hoursWorked Float
+  overtimeHours Float @default(0)
+  status     String   @default("SUBMITTED")
+  createdAt  DateTime @default(now())
+
+  @@index([orgId])
+  @@index([employeeId])
+  @@map("hr_time_entries")
+}
+
+model HrLeaveRequest {
+  id         String   @id @default(cuid())
+  orgId      String
+  org        Org      @relation(fields: [orgId], references: [id])
+  employeeId String
+  employee   HrEmployee @relation(fields: [employeeId], references: [id])
+  type       String   // PTO, Sick, Parental, Unpaid
+  startDate  DateTime
+  endDate    DateTime
+  hours      Float
+  status     String   @default("PENDING")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([orgId])
+  @@index([employeeId])
+  @@map("hr_leave_requests")
+}
+
+model HrTraining {
+  id          String   @id @default(cuid())
+  orgId       String
+  org         Org      @relation(fields: [orgId], references: [id])
+  employeeId  String
+  employee    HrEmployee @relation(fields: [employeeId], references: [id])
+  courseName  String
+  provider    String?
+  status      String   @default("NOT_STARTED")
+  dueDate     DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  changeTrainingModelId String?
+  changeTrainingModel   ChangeTrainingModel? @relation(fields: [changeTrainingModelId], references: [id])
+
+  @@index([orgId])
+  @@index([employeeId])
+  @@index([changeTrainingModelId])
+  @@map("hr_trainings")
+}
+
+model HrPayrollRun {
+  id           String   @id @default(cuid())
+  orgId        String
+  org          Org      @relation(fields: [orgId], references: [id])
+  periodLabel  String   // e.g. "Aug 2026 - Run 2"
+  payDate      DateTime
+  totalGross   Float
+  totalNet     Float
+  totalTaxes   Float
+  employeeCount Int
+  status       String   @default("PENDING")
+  provider     PayrollProviderType @default(NATIVE)
+  externalRunId String?             // ID of the run in Gusto/ADP/Intuit, if processed externally
+  createdAt    DateTime @default(now())
+
+  @@index([orgId])
+  @@map("hr_payroll_runs")
+}
+
+// ── Payroll provider integrations (Gusto / ADP / QuickBooks Payroll) ──
+model HrPayrollProvider {
+  id                String   @id @default(cuid())
+  orgId             String
+  org               Org      @relation(fields: [orgId], references: [id])
+  provider          PayrollProviderType
+  status            PayrollProviderStatus @default(NOT_CONNECTED)
+  isActive          Boolean  @default(false)
+  externalCompanyId String?  // Gusto company_id / ADP orgOid / Intuit realmId
+  credentialRef     String?  // last-4 masked reference only — safe to display in UI
+  credentialsEnc    String?  @db.Text // AES-256-GCM encrypted JSON of the real credentials
+  connectedAt       DateTime?
+  lastSyncAt        DateTime?
+  lastError         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([orgId, provider])
+  @@index([orgId])
+  @@map("hr_payroll_providers")
+}
+
+enum PayrollProviderType {
+  NATIVE
+  GUSTO
+  ADP
+  INTUIT
+}
+
+enum PayrollProviderStatus {
+  NOT_CONNECTED
+  CONNECTED
+  ERROR
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Change Management — AI adoption rollout, sentiment, training,
+//  communications, and risk tracking across CorverxisONE modules
+// ══════════════════════════════════════════════════════════════
+
+model ChangeInitiative {
+  id             String   @id @default(cuid())
+  orgId          String
+  org            Org      @relation(fields: [orgId], references: [id])
+  title          String
+  pillar         ChangePillar
+  phase          ChangePhase @default(DATA_FOUNDATION)
+  ownerName      String?
+  targetDept     String?
+  linkedModule   String?    // nav() page id this initiative drives adoption for, e.g. 'pred', 'vision', 'supply', 'pia'
+  description    String?    @db.Text
+  adoptionPct    Float      @default(0)   // 0-100, % of target workforce actively using the capability
+  sentimentScore Float      @default(70)  // 0-100, aggregate employee sentiment toward this initiative
+  status         ChangeStatus @default(ON_TRACK)
+  startedAt      DateTime   @default(now())
+  targetDate     DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@index([orgId])
+  @@map("change_initiatives")
+}
+
+enum ChangePillar {
+  PREDICTIVE_MAINTENANCE
+  QUALITY_CONTROL
+  SUPPLY_CHAIN
+  PROCESS_OPTIMIZATION
+  OTHER
+}
+
+enum ChangePhase {
+  DATA_FOUNDATION
+  PILOT
+  SCALING
+  CONTINUOUS_IMPROVEMENT
+}
+
+enum ChangeStatus {
+  ON_TRACK
+  AT_RISK
+  STALLED
+  COMPLETE
+}
+
+model ChangeCommunication {
+  id            String   @id @default(cuid())
+  orgId         String
+  org           Org      @relation(fields: [orgId], references: [id])
+  initiativeId  String?
+  title         String
+  audience      String?  // e.g. "All Plant Floor", "Line 3 Operators"
+  channel       String?  // Town Hall, Email, Slack, Posted Notice
+  summary       String?  @db.Text
+  sentAt        DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@index([orgId])
+  @@map("change_communications")
+}
+
+model ChangeRisk {
+  id            String   @id @default(cuid())
+  orgId         String
+  org           Org      @relation(fields: [orgId], references: [id])
+  title         String
+  category      ChangeRiskCategory
+  severity      String   @default("MEDIUM") // LOW / MEDIUM / HIGH
+  status        String   @default("OPEN")   // OPEN / MITIGATING / RESOLVED
+  mitigation    String?  @db.Text
+  linkedModule  String?  // nav() page id relevant to this risk, e.g. 'erp', 'comp', 'aiops'
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([orgId])
+  @@map("change_risks")
+}
+
+enum ChangeRiskCategory {
+  DATA_SILOS
+  CYBERSECURITY
+  SKILL_GAP
+  RESISTANCE
+  OTHER
+}
+
+// ── Training models — structured AI upskilling curricula, mapped
+// to the 4 change-management pillars, with real enrollment/completion
+// computed from linked HrTraining records ──
+model ChangeTrainingModel {
+  id            String   @id @default(cuid())
+  orgId         String
+  org           Org      @relation(fields: [orgId], references: [id])
+  pillar        ChangePillar
+  title         String
+  description   String?  @db.Text
+  format        String   @default("Self-Paced")  // Self-Paced / Instructor-Led / Hands-On Shadow
+  durationHours Float    @default(2)
+  targetRole    String?  // e.g. "Machine Operators", "Quality Inspectors"
+  status        String   @default("ACTIVE")       // ACTIVE / DRAFT / RETIRED
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  enrollments   HrTraining[]
+
+  @@index([orgId])
+  @@map("change_training_models")
 }

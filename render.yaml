@@ -19,6 +19,8 @@ services:
         generateValue: true  # Render auto-generates a secure random value
       - key: SESSION_SECRET
         generateValue: true
+      - key: PAYROLL_CREDENTIALS_KEY
+        generateValue: true  # 32-byte key (base64) used to encrypt Gusto/ADP/Intuit credentials at rest
       - key: ADMIN_EMAIL
         value: admin@corverxis.com
       - key: GOOGLE_CLIENT_ID

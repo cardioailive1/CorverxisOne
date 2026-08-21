@@ -44,6 +44,8 @@ const erpRouter      = require('./routes/erp');
 const inventoryRouter  = require('./routes/inventory');
 const improvementRouter = require('./routes/improvement');
 const apiRouter      = require('./routes/api');
+const hrimRouter     = require('./routes/hrim');
+const changeRouter   = require('./routes/change');
 
 const app    = express();
 const server = http.createServer(app);
@@ -88,6 +90,8 @@ app.use('/api', erpRouter);
 app.use('/api/v1', inventoryRouter);
 app.use('/api/v1', improvementRouter); // automation/ncrs + automation/log sub-routes
 app.use('/api/v1', apiRouter);
+app.use('/api/v1', hrimRouter);
+app.use('/api/v1', changeRouter);
 
 // ── Public routes ─────────────────────────────────────────────────────────────
 app.get('/api/health', async (req, res) => {
@@ -202,6 +206,12 @@ app.get('/vision', requireSession, (req, res) => {
   const f = path.join(PUBLIC, 'corverxis-vision.html');
   if (fs.existsSync(f)) return res.sendFile(f);
   res.status(404).send('corverxis-vision.html not found in public/');
+});
+
+app.get('/hrim', requireSession, (req, res) => {
+  const f = path.join(PUBLIC, 'corverxis-hrim.html');
+  if (fs.existsSync(f)) return res.sendFile(f);
+  res.status(404).send('corverxis-hrim.html not found in public/');
 });
 
 // ── Protected API routes ──────────────────────────────────────────────────────
@@ -457,6 +467,17 @@ setInterval(() => {
     cycleMs: 130+Math.floor(Math.random()*25), fps: 24, camera: 'Corverxis CVX-2448-C',
     timestamp: new Date().toISOString() });
 }, 1500);
+
+// ── HRIM automation: nightly-equivalent attrition recompute ────────────────
+// Recomputes attrition risk for every org every 6 hours so scores drift with
+// tenure/comp changes even when no employee record is manually touched.
+setInterval(async () => {
+  try {
+    const { recomputeAttrition } = require('./routes/hrim');
+    const orgs = await prisma.org.findMany({ select: { id: true } });
+    for (const o of orgs) { await recomputeAttrition(o.id).catch(()=>{}); }
+  } catch (e) { console.error('HRIM attrition recompute job failed:', e.message); }
+}, 6 * 60 * 60 * 1000);
 
 // ── Sensor simulation ─────────────────────────────────────────────────────────
 const SENSOR_BASES = { mfg_vib:1.2, mfg_temp:42, mfg_curr:18, mfg_press:120,

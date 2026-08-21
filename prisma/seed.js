@@ -616,5 +616,7 @@ main()
   .then(() => seedDynamicData())
   .then(() => seedInventory())
   .then(() => seedProcessImprovement())
+  .then(() => require('./seed-hrim').seedHrim())
+  .then(() => require('./seed-change').seedChange())
   .catch((e) => { console.error('❌ Seed failed:', e); process.exit(1); })
   .finally(async () => { await prisma.$disconnect(); });
