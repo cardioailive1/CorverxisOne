@@ -1669,6 +1669,7 @@ tr:hover td{background:rgba(255,255,255,0.02);}
   <button class="scm-tab"        id="aiotab-console"   onclick="aioTab('console')">AI Console</button>
   <button class="scm-tab"        id="aiotab-ops"       onclick="aioTab('ops')">Automation Ops</button>
   <button class="scm-tab"        id="aiotab-govern"    onclick="aioTab('govern')">Governance</button>
+  <button class="scm-tab"        id="aiotab-pilots"    onclick="aioTab('pilots')">Pilot Studies</button>
 </div>
 
 <!-- ── SYSTEM HEALTH ──────────────────────────────────────── -->
@@ -1886,6 +1887,140 @@ tr:hover td{background:rgba(255,255,255,0.02);}
         <span style="color:#6b7280;font-weight:600;white-space:nowrap">PLANNED</span><span style="color:#9ca3af">Q1 2027 · ISO/IEC 42001 certification audit with Bureau Veritas. Full AI management system audit.</span>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- PILOT STUDIES -->
+<div class="aio-panel" id="aiopanel-pilots" style="display:none">
+  <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:14px">AI Adoption Pilot Studies — proposals for extending AI beyond current production systems</div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:5px;background:rgba(139,92,246,.15);color:#8b5cf6;display:inline-block;margin-bottom:8px">PREDICTIVE MAINTENANCE</div>
+        <div class="ct" style="font-size:16px;margin-bottom:4px">Precision Machining Pilot — TBD</div>
+        <div style="font-size:12px;color:var(--muted)">4–8 week pilot · Single CNC machining cell · NexGen Predict</div>
+      </div>
+      <span class="badge info" style="white-space:nowrap">Phase 2 — Pilot Proposal</span>
+    </div>
+  </div>
+
+  <div class="kg">
+    <div class="kpi"><div class="kpi-l">Automotive Downtime Cost</div><div class="kpi-v" style="color:var(--red)">$2.3M</div><div class="kpi-s">Per hour, large automotive plants (Siemens, 2024)</div></div>
+    <div class="kpi"><div class="kpi-l">Breakdown Reduction</div><div class="kpi-v" style="color:var(--green)">~70%</div><div class="kpi-s">Typical PM programs vs. reactive baseline (Deloitte)</div></div>
+    <div class="kpi"><div class="kpi-l">Recommended Duration</div><div class="kpi-v" style="color:var(--ocean)">4–8 wks</div><div class="kpi-s">Single-cell scope</div></div>
+    <div class="kpi"><div class="kpi-l">Target Lead Time</div><div class="kpi-v" style="color:var(--green)">24h+</div><div class="kpi-s">Advance warning before failure</div></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin-bottom:14px">
+    <div class="card">
+      <div class="ct">Executive Summary</div>
+      <div style="font-size:12px;color:#9ca3af;line-height:1.7">
+        TBD machines precision, safety-critical components for major automotive OEMs including GM, Ford, Honda, Toyota, and Tesla. These customers hold suppliers to IATF 16949 quality standards, just-in-time delivery windows, and zero tolerance for late or defective shipments — making an unplanned machine failure a direct threat to on-time delivery and future sourcing decisions.
+        <br><br>
+        This pilot proposes a focused predictive maintenance program on a single CNC machining cell, using Corverxis NexGen Predict, to demonstrate that IoT-sensor-driven failure prediction can give the maintenance team 24+ hours of advance warning before a bearing, spindle, or servo failure — replacing reactive "firefighting" with planned intervention.
+        <br><br>
+        A narrow, well-instrumented pilot is the fastest path to organizational trust: once the floor sees NexGen Predict catch a real failure before it happens, they become the strongest internal advocates for extending AI adoption to quality inspection, supply chain planning, and process optimization.
+      </div>
+    </div>
+    <div class="card">
+      <div class="ct">Industry Context</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:11px;color:#9ca3af">
+        <div style="padding:8px;background:rgba(239,68,68,.06);border-left:3px solid #ef4444;border-radius:4px">Siemens (2024): unplanned downtime at large automotive plants runs up to <b style="color:#e2e8f0">$2.3M/hour</b> — roughly $600/second.</div>
+        <div style="padding:8px;background:rgba(245,158,11,.06);border-left:3px solid #f59e0b;border-radius:4px">Aberdeen Research: cross-industry manufacturing average is closer to <b style="color:#e2e8f0">$260K/hour</b> — automotive runs far steeper.</div>
+        <div style="padding:8px;background:rgba(0,194,224,.06);border-left:3px solid #00c2e0;border-radius:4px">Industry surveys of automotive execs: stoppage costs of <b style="color:#e2e8f0">$22K–$50K/minute</b> once idled labor, expedited parts, and shipment penalties are included.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="ct">Why Predictive Maintenance Is the Right First Pilot</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+      <div style="background:var(--navy3);border-radius:8px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#00c2e0;margin-bottom:4px">1. Immediate Value</div>
+        <div style="font-size:10.5px;color:#9ca3af;line-height:1.4">A prevented crash is a visible, dateable win — not an abstract statistic.</div>
+      </div>
+      <div style="background:var(--navy3);border-radius:8px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#00c2e0;margin-bottom:4px">2. Builds Trust</div>
+        <div style="font-size:10.5px;color:#9ca3af;line-height:1.4">Maintenance techs are the most skeptical audience — and once convinced, the most credible advocates.</div>
+      </div>
+      <div style="background:var(--navy3);border-radius:8px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#00c2e0;margin-bottom:4px">3. Low Friction</div>
+        <div style="font-size:10.5px;color:#9ca3af;line-height:1.4">Layers onto existing maintenance workflow — no change to how parts are actually made.</div>
+      </div>
+      <div style="background:var(--navy3);border-radius:8px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#00c2e0;margin-bottom:4px">4. Data Foundation</div>
+        <div style="font-size:10.5px;color:#9ca3af;line-height:1.4">IIoT + MES integration built here is a prerequisite for Vision QC, Supply Chain AI, and Process Optimization.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="ct" style="padding:14px 14px 0">Recommended Pilot Scope</div>
+      <table>
+        <tr><th>Dimension</th><th>Scope</th></tr>
+        <tr><td>Location</td><td>One CNC cell — high-tolerance safety-critical part</td></tr>
+        <tr><td>Assets</td><td>1–3 machines, incl. one with known failure history</td></tr>
+        <tr><td>Sensors</td><td>Vibration · Temperature · Acoustic · Current draw</td></tr>
+        <tr><td>Duration</td><td>4–8 weeks end to end</td></tr>
+        <tr><td>Team</td><td>Maintenance lead, 2–3 operators, 1–2 technicians, Corverxis engineer</td></tr>
+      </table>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="ct" style="padding:14px 14px 0">Implementation Timeline</div>
+      <table>
+        <tr><th>Week</th><th>Phase</th><th>Focus</th></tr>
+        <tr><td>1–2</td><td>Data Foundation</td><td>Sensor install, baseline capture, threshold calibration</td></tr>
+        <tr><td>3–4</td><td>Pilot — Live</td><td>Live RUL monitoring begins; operator training via CorverxisAcademy</td></tr>
+        <tr><td>5–6</td><td>Pilot — Live</td><td>Continued monitoring; log every alert and outcome</td></tr>
+        <tr><td>7</td><td>Results Review</td><td>Compile downtime avoided, technician hours saved</td></tr>
+        <tr><td>8</td><td>Decision Point</td><td>Recommend Phase 3 (Scaling) scope</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="ct">Success Metrics &amp; KPIs</div>
+    <table>
+      <tr><th>Metric</th><th>Baseline</th><th>Pilot Target</th></tr>
+      <tr><td>Unplanned downtime events (covered assets)</td><td>Current 90-day avg</td><td>1+ failure caught with 24h+ warning</td></tr>
+      <tr><td>False-positive alert rate</td><td>N/A (new capability)</td><td>Under 20%, refined weekly</td></tr>
+      <tr><td>Technician hours on emergency repair</td><td>Current 90-day avg</td><td>Measurable reduction</td></tr>
+      <tr><td>Operator/technician course completion</td><td>0%</td><td>100% before go-live</td></tr>
+      <tr><td>Floor sentiment toward the pilot</td><td>Baseline survey</td><td>Net positive by pilot close</td></tr>
+    </table>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+    <div class="card">
+      <div class="ct">Illustrative Business Case</div>
+      <div style="font-size:10.5px;color:#6b7280;font-style:italic;margin-bottom:10px">Industry-benchmark illustrations, not a guarantee for any specific facility.</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:11px;color:#9ca3af">
+        <div>• One averted 30–60 min stoppage can exceed the entire pilot's cost, based on reported automotive downtime of $22K–$50K/minute.</div>
+        <div>• Deloitte: predictive maintenance programs typically reduce breakdowns ~70% vs. reactive/preventive baselines.</div>
+        <div>• Industry benchmarks commonly report 25–40% maintenance cost reduction under mature PdM programs.</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ct">Key Risks &amp; Mitigations</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:11px;color:#9ca3af">
+        <div>• <b style="color:#e2e8f0">Limited history</b> → confidence scores shown transparently; improve as data accumulates</div>
+        <div>• <b style="color:#e2e8f0">False positives</b> → tracked explicitly as a pilot KPI, tuned weekly</div>
+        <div>• <b style="color:#e2e8f0">Floor skepticism</b> → addressed directly via Change Management comms, not deferred</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="ct">Path to Scale</div>
+    <div style="font-size:12px;color:#9ca3af;line-height:1.6">
+      A successful pilot supports two scaling tracks: <b style="color:#e2e8f0">horizontal</b> — extending predictive maintenance to additional CNC cells using the validated sensor/alerting architecture — and <b style="color:#e2e8f0">vertical</b> — applying the trust and data foundation built here to the next AI adoption pillars already defined in the roadmap: computer-vision quality inspection, AI-assisted supply and inventory planning, and process (Golden Batch) optimization. The pilot's greatest asset isn't the technology validation — it's a floor team that has personally seen the system prevent a real problem.
+    </div>
+  </div>
+
+  <div style="padding:10px 12px;background:rgba(0,194,224,.06);border:1px solid rgba(0,194,224,.15);border-radius:8px;font-size:10.5px;color:#6b7280;font-style:italic">
+    Sources: Siemens True Cost of Downtime research (2024) · Aberdeen Research manufacturing downtime benchmarking · Deloitte Analytics Institute predictive maintenance position paper · industry surveys of automotive manufacturing executives on production stoppage costs. Figures are directional industry benchmarks; the pilot itself is designed to produce facility-specific results for TBD.
   </div>
 </div>
 
@@ -8266,6 +8401,7 @@ function aioTab(name) {
   if (name === 'console')   initConsole();
   if (name === 'ops')       loadAIOOps();
   if (name === 'govern')    {}  // static render
+  if (name === 'pilots')    {}  // static render
 }
 
 function loadAIOCenter() {
@@ -13324,12 +13460,20 @@ window.cmOpenNewInitiative = function(){
   );
 };
 
-window.cmOpenLogComm = function(){
+window.cmOpenLogComm = async function(){
+  // Refresh on-demand rather than trusting whatever CM_INITIATIVES happened
+  // to hold at page-load time — same class of bug as the HRIM department
+  // dropdown: stale/empty data if this modal opens before or long after
+  // the last initiatives fetch.
+  await cmFetchInitiatives();
+  var initOptions = CM_INITIATIVES.length
+    ? [{value:'',label:'— none —'}].concat(CM_INITIATIVES.map(function(i){ return {value:i.id,label:i.title}; }))
+    : [{value:'',label:'— no initiatives yet —'}];
   cmOpenModal('Log Communication',
     _cmField('Title','title','text') +
     _cmField('Channel','channel','select',{ required:false, options:['Town Hall','Email','Slack','Posted Notice','All-Hands'] }) +
     _cmField('Audience','audience','text',{ required:false, opts:'e.g. All Plant Floor' }) +
-    _cmField('Related initiative','initiativeId','select',{ required:false, options:[{value:'',label:'— none —'}].concat(CM_INITIATIVES.map(function(i){ return {value:i.id,label:i.title}; })) }) +
+    _cmField('Related initiative','initiativeId','select',{ required:false, options:initOptions }) +
     _cmField('Summary','summary','textarea',{ required:false }),
     async function(payload){
       await _cmPost('/api/v1/change/communications', payload);
