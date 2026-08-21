@@ -153,6 +153,37 @@ router.get('/hrim/departments', authenticate, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+const DEFAULT_DEPARTMENTS = [
+  { name:'Manufacturing Ops',            budgetAnnual: 8400000, costCenter:'CC-100' },
+  { name:'Quality Engineering',          budgetAnnual: 2100000, costCenter:'CC-110' },
+  { name:'Supply Chain',                 budgetAnnual: 1600000, costCenter:'CC-120' },
+  { name:'R&D / AI Engineering',         budgetAnnual: 5200000, costCenter:'CC-130' },
+  { name:'Finance',                      budgetAnnual: 1200000, costCenter:'CC-140' },
+  { name:'Sales & Customer Success',     budgetAnnual: 1900000, costCenter:'CC-150' },
+  { name:'IT / Platform',                budgetAnnual: 1500000, costCenter:'CC-160' },
+  { name:'People & Talent',              budgetAnnual: 850000,  costCenter:'CC-170' },
+  { name:'Executive',                    budgetAnnual: 2600000, costCenter:'CC-180' },
+];
+
+// Bypasses the whole build/seed pipeline — creates the standard
+// department set via a direct authenticated call from the running app.
+// Idempotent: safe to click more than once.
+router.post('/hrim/departments/seed-defaults', authenticate, requireRole('MANAGER'), async (req, res) => {
+  try {
+    const orgId = req.user.orgId;
+    const existing = await prisma.hrDepartment.count({ where: { orgId } });
+    if (existing > 0) {
+      const rows = await prisma.hrDepartment.findMany({ where: { orgId } });
+      return res.json({ data: rows, created: 0, message: `${existing} department(s) already exist — nothing new created.` });
+    }
+    const created = [];
+    for (const d of DEFAULT_DEPARTMENTS) {
+      created.push(await prisma.hrDepartment.create({ data: { orgId, ...d } }));
+    }
+    res.status(201).json({ data: created, created: created.length, message: `${created.length} default departments created.` });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── EMPLOYEES ────────────────────────────────────────────────
 router.get('/hrim/employees', authenticate, async (req, res) => {
   try {

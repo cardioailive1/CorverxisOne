@@ -404,12 +404,20 @@ async function hrimOpenAddEmployee(){
   // load, leaving the dropdown empty forever with no retry.
   await _hrimRefreshDeptCache();
   var deptOpts = _deptOptionsWithIds();
+  var deptField = deptOpts.length
+    ? _field('Department','departmentId','select',{ options:deptOpts, placeholder:'Select department', required:false })
+    : '<div style="margin-bottom:12px">' +
+        '<label style="display:block;font-size:11px;color:#9ca3af;margin-bottom:4px">Department</label>' +
+        '<div style="background:#112645;border:1px dashed rgba(245,158,11,.4);border-radius:6px;padding:10px;font-size:11px;color:#f59e0b">' +
+          'No departments exist yet. <a href="#" onclick="event.preventDefault();hrimSeedDefaultDepartments()" style="color:#00c2e0;text-decoration:underline">Click here to load the default 9 departments</a>, then reopen this form.' +
+        '</div>' +
+      '</div>';
   hrimOpenModal('Add Employee',
     _field('First name','firstName','text') +
     _field('Last name','lastName','text') +
     _field('Email','email','email') +
     _field('Job title','jobTitle','text') +
-    _field('Department','departmentId','select',{ options:deptOpts, placeholder: deptOpts.length ? 'Select department' : 'No departments found', required:false }) +
+    deptField +
     _field('Location','location','text',{ required:false }) +
     _field('Employment type','employmentType','select',{ options:['FULL_TIME','PART_TIME','CONTRACT','INTERN'], required:false }) +
     _field('Hire date','hireDate','date') +
@@ -420,6 +428,15 @@ async function hrimOpenAddEmployee(){
       hrimNav('people');
     }, 'Add Employee'
   );
+}
+async function hrimSeedDefaultDepartments(){
+  try {
+    await _hrimPost('/api/v1/hrim/departments/seed-defaults', {});
+    document.getElementById('hrim-modal-overlay')?.remove();
+    await hrimOpenAddEmployee(); // reopen with the now-populated dropdown
+  } catch(e) {
+    alert('Could not load default departments: ' + e.message);
+  }
 }
 var _HRIM_DEPT_CACHE = [];
 function _deptOptionsWithIds(){

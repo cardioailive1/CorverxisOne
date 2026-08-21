@@ -47,16 +47,25 @@ async function seedHrim() {
   const org = await prisma.org.findUnique({ where: { slug: 'corverxis-demo' } });
   if (!org) { console.log('⚠ No demo org found — skipping HRIM seed'); return; }
 
-  // Skip if already seeded
-  const existing = await prisma.hrEmployee.count({ where: { orgId: org.id } });
-  if (existing > 0) { console.log(`✓ HRIM already seeded (${existing} employees) — skipping`); return; }
-
-  // ── Departments ──
+  // Each section checks and seeds independently — a blanket "employees
+  // exist, skip everything" guard here would permanently block
+  // departments from ever being (re-)created if an earlier partial run
+  // created employees but not departments (exactly what happened).
   const deptMap = {};
-  for (const d of DEPARTMENTS) {
-    const dept = await prisma.hrDepartment.create({ data: { orgId: org.id, ...d } });
-    deptMap[d.name] = dept.id;
+  const existingDepts = await prisma.hrDepartment.findMany({ where: { orgId: org.id } });
+  if (existingDepts.length === 0) {
+    for (const d of DEPARTMENTS) {
+      const dept = await prisma.hrDepartment.create({ data: { orgId: org.id, ...d } });
+      deptMap[d.name] = dept.id;
+    }
+    console.log(`✓ HRIM: ${DEPARTMENTS.length} departments seeded`);
+  } else {
+    existingDepts.forEach(d => { deptMap[d.name] = d.id; });
+    console.log(`✓ HRIM: ${existingDepts.length} departments already present — skipping`);
   }
+
+  const existing = await prisma.hrEmployee.count({ where: { orgId: org.id } });
+  if (existing > 0) { console.log(`✓ HRIM: ${existing} employees already present — skipping employee seed`); return; }
 
   // ── Executives first (no manager) ──
   const execTitles = TITLES['Executive'];
