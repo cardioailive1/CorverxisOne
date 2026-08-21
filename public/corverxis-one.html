@@ -3263,8 +3263,8 @@ tr:hover td{background:rgba(255,255,255,0.02);}
   </div>
   <div class="card" style="padding:0;overflow:hidden" id="cm-enrollments-card">
     <div class="ct" style="padding:14px 14px 0" id="cm-enrollments-title">Enrollments</div>
-    <table><thead><tr><th>Employee</th><th>Course</th><th>Provider</th><th>Status</th><th>Due Date</th></tr></thead>
-    <tbody id="cm-training-tbody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Create or load a training model above, then click it to view enrollments here.</td></tr></tbody></table>
+    <table><thead><tr><th>Employee</th><th>Course</th><th>Provider</th><th>Status</th><th>Due Date</th><th>Action</th></tr></thead>
+    <tbody id="cm-training-tbody"><tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">Create or load a training model above, then click it to view enrollments here.</td></tr></tbody></table>
   </div>
 </div>
 
@@ -13036,32 +13036,53 @@ window.cmSelectTrainingModel = function(id){
   }, 30);
 };
 
+var _cmCurrentEnrollmentModelId = null;
+
 async function cmLoadEnrollments(modelId) {
   var tbody = document.getElementById('cm-training-tbody');
   var titleEl = document.getElementById('cm-enrollments-title');
   if (!tbody) return;
+  _cmCurrentEnrollmentModelId = modelId;
   var model = CM_TRAINING_MODELS.find(function(m){ return m.id === modelId; });
   if (titleEl) titleEl.textContent = 'Enrollments — ' + (model ? model.title : '');
-  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Loading…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">Loading…</td></tr>';
   try {
     var r = await fetch('/api/v1/change/training-models/'+modelId+'/enrollments', { credentials:'same-origin' });
     if (!r.ok) throw new Error('unavailable');
     var rows = (await r.json()).data || [];
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">No one enrolled yet. Click <b>+ Assign to Employee</b> on the card above.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">No one enrolled yet. Click <b>+ Assign to Employee</b> on the card above.</td></tr>';
       return;
     }
     tbody.innerHTML = rows.map(function(t){
       var name = t.employee ? (t.employee.firstName+' '+t.employee.lastName) : '—';
       var statusCol = t.status==='COMPLETED'?'ok':t.status==='IN_PROGRESS'?'info':'warn';
+      var action = t.status==='NOT_STARTED'
+        ? '<button onclick="cmUpdateTrainingStatus(\''+t.id+'\',\'IN_PROGRESS\')" style="padding:4px 10px;background:rgba(0,194,224,.1);border:1px solid rgba(0,194,224,.3);border-radius:5px;color:#00c2e0;font-size:10px;font-weight:700;cursor:pointer">Start Training</button>'
+        : t.status==='IN_PROGRESS'
+          ? '<button onclick="cmUpdateTrainingStatus(\''+t.id+'\',\'COMPLETED\')" style="padding:4px 10px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:5px;color:#22c55e;font-size:10px;font-weight:700;cursor:pointer">Mark Complete</button>'
+          : '<span style="font-size:10px;color:#22c55e">✓ Done'+(t.completedAt?' · '+t.completedAt.slice(0,10):'')+'</span>';
       return '<tr><td style="color:var(--text)">'+name+'</td><td>'+t.courseName+'</td><td>'+(t.provider||'—')+'</td>' +
         '<td><span class="badge '+statusCol+'">'+t.status.replace('_',' ')+'</span></td>' +
-        '<td>'+(t.dueDate?t.dueDate.slice(0,10):'—')+'</td></tr>';
+        '<td>'+(t.dueDate?t.dueDate.slice(0,10):'—')+'</td>' +
+        '<td>'+action+'</td></tr>';
     }).join('');
   } catch(e) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Enrollment data unavailable right now.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">Enrollment data unavailable right now.</td></tr>';
   }
 }
+
+window.cmUpdateTrainingStatus = async function(trainingId, newStatus){
+  try {
+    await _cmPatch('/api/v1/hrim/trainings/'+trainingId, { status: newStatus });
+    // Refresh both the enrollments table and the model cards (completion % changed)
+    await cmFetchTrainingModels();
+    cmRenderTrainingModels();
+    if (_cmCurrentEnrollmentModelId) await cmLoadEnrollments(_cmCurrentEnrollmentModelId);
+  } catch(e) {
+    alert('Could not update training status: ' + e.message);
+  }
+};
 
 // ── COMMUNICATIONS ───────────────────────────────────────────
 function cmRenderComms() {

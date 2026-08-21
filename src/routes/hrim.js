@@ -557,6 +557,29 @@ router.post('/hrim/trainings', authenticate, requireRole('MANAGER'), async (req,
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Move a training record through NOT_STARTED → IN_PROGRESS → COMPLETED.
+// Any authenticated user can update their own progress; managers can
+// update anyone's (matches how the rest of HRIM's write endpoints work).
+router.patch('/hrim/trainings/:id', authenticate, async (req, res) => {
+  try {
+    const orgId = req.user.orgId;
+    const { status } = req.body;
+    const allowed = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED'];
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ error: `status must be one of: ${allowed.join(', ')}` });
+    }
+    const existing = await prisma.hrTraining.findFirst({ where: { id: req.params.id, orgId } });
+    if (!existing) return res.status(404).json({ error: 'Training record not found' });
+
+    const data = { status };
+    if (status === 'COMPLETED') data.completedAt = new Date();
+    if (status === 'NOT_STARTED') data.completedAt = null; // allow reverting
+
+    const t = await prisma.hrTraining.update({ where: { id: req.params.id }, data });
+    res.json({ data: t });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── PAYROLL PROVIDERS (Gusto / ADP / Intuit / Native) ─────────
 router.get('/hrim/payroll/providers', authenticate, requireRole('MANAGER'), async (req, res) => {
   try {
