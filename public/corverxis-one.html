@@ -1892,9 +1892,17 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 
 <!-- PILOT STUDIES -->
 <div class="aio-panel" id="aiopanel-pilots" style="display:none">
-  <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:14px">AI Adoption Pilot Studies — proposals for extending AI beyond current production systems</div>
+  <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:14px">AI Adoption Pilot Studies — proposals for extending AI beyond current production systems, one per adoption pillar</div>
 
-  <div class="card" style="margin-bottom:16px">
+  <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
+    <button class="scm-tab active" id="pstab-pm"      onclick="showPilot('pm')">Predictive Maintenance</button>
+    <button class="scm-tab"        id="pstab-vision"  onclick="showPilot('vision')">Computer Vision QC</button>
+    <button class="scm-tab"        id="pstab-supply"  onclick="showPilot('supply')">Supply Chain AI</button>
+    <button class="scm-tab"        id="pstab-process" onclick="showPilot('process')">Process Optimization</button>
+  </div>
+
+  <div id="pilot-content-pm">
+<div class="card" style="margin-bottom:16px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
       <div>
         <div style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:5px;background:rgba(139,92,246,.15);color:#8b5cf6;display:inline-block;margin-bottom:8px">PREDICTIVE MAINTENANCE</div>
@@ -2021,7 +2029,383 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 
   <div style="padding:10px 12px;background:rgba(0,194,224,.06);border:1px solid rgba(0,194,224,.15);border-radius:8px;font-size:10.5px;color:#6b7280;font-style:italic">
     Sources: Siemens True Cost of Downtime research (2024) · Aberdeen Research manufacturing downtime benchmarking · Deloitte Analytics Institute predictive maintenance position paper · industry surveys of automotive manufacturing executives on production stoppage costs. Figures are directional industry benchmarks; the pilot itself is designed to produce facility-specific results for TBD.
+  </div>  </div>
+
+  <div id="pilot-content-vision" style="display:none">
+  <div class="card" style="margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:5px;background:rgba(0,194,224,.15);color:#00c2e0;display:inline-block;margin-bottom:8px">QUALITY CONTROL</div>
+        <div class="ct" style="font-size:16px;margin-bottom:4px">Computer Vision QC Pilot — TBD</div>
+        <div style="font-size:12px;color:var(--muted)">4–6 week pilot · Single inspection station · Corverxis Vision</div>
+      </div>
+      <span class="badge info" style="white-space:nowrap">Phase 2 — Pilot Proposal</span>
+    </div>
   </div>
+
+  <div class="kg">
+    <div class="kpi"><div class="kpi-l">Manual Inspection Accuracy</div><div class="kpi-v" style="color:var(--amber)">~80%</div><div class="kpi-s">Industry avg (PMC/NCBI, 2023)</div></div>
+    <div class="kpi"><div class="kpi-l">AI Vision Accuracy</div><div class="kpi-v" style="color:var(--green)">95%+</div><div class="kpi-s">vs. human 70–85% (MIT-cited study)</div></div>
+    <div class="kpi"><div class="kpi-l">Inspection Cost Reduction</div><div class="kpi-v" style="color:var(--ocean)">50%+</div><div class="kpi-s">Industry analyses citing McKinsey</div></div>
+    <div class="kpi"><div class="kpi-l">Recommended Duration</div><div class="kpi-v" style="color:var(--purple)">4–6 wks</div><div class="kpi-s">Single-station scope</div></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin-bottom:14px">
+    <div class="card">
+      <div class="ct">Executive Summary</div>
+      <div style="font-size:12px;color:#9ca3af;line-height:1.7">
+        TBD supplies safety-critical precision components to automotive OEMs who require 100% inspection coverage on key characteristics — not statistical sampling. Manual visual inspection has a well-documented accuracy ceiling: peer-reviewed research places typical industry accuracy around 80%, and a widely cited MIT study found human inspectors maintain a 70–85% defect detection rate before fatigue-driven error sets in.
+        <br><br>
+        This pilot proposes Corverxis Vision — AI-powered optical inspection — on a single inspection station, running in parallel with the existing manual process, to demonstrate a direct, measurable accuracy comparison before any inspection responsibility is handed over.
+        <br><br>
+        Every AI-flagged part below the confidence threshold routes to a human review queue — the pilot is designed to remove the fatigue-driven error rate from the large majority of clear calls, not replace the inspector's judgment on genuinely uncertain ones.
+      </div>
+    </div>
+    <div class="card">
+      <div class="ct">Industry Context</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:11px;color:#9ca3af">
+        <div style="padding:8px;background:rgba(245,158,11,.06);border-left:3px solid #f59e0b;border-radius:4px">PMC/NCBI (2023): typical manual visual inspection accuracy runs <b style="color:#e2e8f0">~80%</b> across industry — a documented, not anecdotal, ceiling.</div>
+        <div style="padding:8px;background:rgba(34,197,94,.06);border-left:3px solid #22c55e;border-radius:4px">MIT-cited research: human inspectors average <b style="color:#e2e8f0">70–85%</b> detection; AI vision systems consistently exceed <b style="color:#e2e8f0">95%</b>.</div>
+        <div style="padding:8px;background:rgba(0,194,224,.06);border-left:3px solid #00c2e0;border-radius:4px">Industry analyses citing McKinsey: AI vision improves detection rates up to <b style="color:#e2e8f0">90%</b> while cutting inspection costs <b style="color:#e2e8f0">50%+</b>.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="ct">Why Computer Vision QC Is a High-Value Pilot</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+      <div style="background:var(--navy3);border-radius:8px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#00c2e0;margin-bottom:4px">1. Closes a Known Gap</div>
+        <div style="font-size:10.5px;color:#9ca3af;line-height:1.4">80–85% manual ceiling vs. 95%+ AI accuracy — large enough to matter and to prove in a short pilot.</div>
+      </div>
+      <div style="background:var(--navy3);border-radius:8px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#00c2e0;margin-bottom:4px">2. No Process Change</div>
+        <div style="font-size:10.5px;color:#9ca3af;line-height:1.4">Adds inspection capability — doesn't touch machining parameters or tooling.</div>
+      </div>
+      <div style="background:var(--navy3);border-radius:8px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#00c2e0;margin-bottom:4px">3. IATF-Ready Evidence</div>
+        <div style="font-size:10.5px;color:#9ca3af;line-height:1.4">Every decision + confidence score is logged — exactly the traceable record IATF 16949 audits look for.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="ct" style="padding:14px 14px 0">Recommended Pilot Scope</div>
+      <table>
+        <tr><th>Dimension</th><th>Scope</th></tr>
+        <tr><td>Location</td><td>One inspection station, highest-defect-cost part</td></tr>
+        <tr><td>Coverage</td><td>100% of parts — not a sampling rate</td></tr>
+        <tr><td>Defects</td><td>Cracks, porosity, dimensional deviation, finish</td></tr>
+        <tr><td>Duration</td><td>4–6 weeks, incl. parallel run vs. manual</td></tr>
+        <tr><td>Team</td><td>QE lead, 1–2 inspectors, Corverxis engineer</td></tr>
+      </table>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="ct" style="padding:14px 14px 0">Implementation Timeline</div>
+      <table>
+        <tr><th>Week</th><th>Phase</th><th>Focus</th></tr>
+        <tr><td>1</td><td>Calibration</td><td>Cameras, lighting, baseline capture</td></tr>
+        <tr><td>2–3</td><td>Parallel Run</td><td>AI + manual inspection side by side</td></tr>
+        <tr><td>4</td><td>Parallel Run</td><td>Mid-pilot accuracy review</td></tr>
+        <tr><td>5</td><td>Results Review</td><td>Compile accuracy & cost comparison</td></tr>
+        <tr><td>6</td><td>Decision Point</td><td>Recommend Phase 3 scope</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="ct">Success Metrics &amp; KPIs</div>
+    <table>
+      <tr><th>Metric</th><th>Baseline</th><th>Pilot Target</th></tr>
+      <tr><td>Inspection accuracy (AI vs. manual)</td><td>~80–85% manual</td><td>AI ≥95% on validated defects</td></tr>
+      <tr><td>False-positive rate</td><td>N/A (new capability)</td><td>Under 10%, refined weekly</td></tr>
+      <tr><td>Review-queue volume</td><td>N/A (new capability)</td><td>Under 15% of parts by pilot close</td></tr>
+      <tr><td>Inspector course completion</td><td>0%</td><td>100% before go-live</td></tr>
+    </table>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+    <div class="card">
+      <div class="ct">Illustrative Business Case</div>
+      <div style="font-size:10.5px;color:#6b7280;font-style:italic;margin-bottom:10px">Industry-benchmark illustrations, not a guarantee for any specific facility.</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:11px;color:#9ca3af">
+        <div>• AI vision can improve defect detection up to 90% vs. manual baseline (industry analyses citing McKinsey).</div>
+        <div>• Inspection labor cost reductions of 50%+ once AI handles the high-confidence majority.</div>
+        <div>• A 1% defect rate reaching customers in high-volume automotive can cost millions once recalls/scorecarding are included.</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ct">Key Risks &amp; Mitigations</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:11px;color:#9ca3af">
+        <div>• <b style="color:#e2e8f0">Lighting/camera drift</b> → daily calibration + mid-shift recheck</div>
+        <div>• <b style="color:#e2e8f0">High false-positive rate</b> → tracked explicitly, tuned weekly</div>
+        <div>• <b style="color:#e2e8f0">Inspector role concern</b> → staffed into review-queue role from day one</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="ct">Path to Scale</div>
+    <div style="font-size:12px;color:#9ca3af;line-height:1.6">
+      A successful pilot supports two tracks: <b style="color:#e2e8f0">horizontal</b> — extending Corverxis Vision to additional inspection stations and defect types — and <b style="color:#e2e8f0">vertical</b> — tighter integration with the NCR and corrective-action workflow already in CorverxisONE. The pilot's most durable outcome is a quality team that has personally verified the AI system's judgment against their own, station by station.
+    </div>
+  </div>
+
+  <div style="padding:10px 12px;background:rgba(0,194,224,.06);border:1px solid rgba(0,194,224,.15);border-radius:8px;font-size:10.5px;color:#6b7280;font-style:italic">
+    Sources: "Artificial Intelligence-Based Smart Quality Inspection for Manufacturing" (PMC/NCBI, 2023) · industry reporting of MIT research on inspector vs. AI accuracy · industry analyses citing McKinsey research on AI-driven visual inspection · Deloitte automotive machine-vision commentary. Figures are directional industry benchmarks; the pilot itself is designed to produce facility-specific figures for TBD.
+  </div>
+  </div>
+  <div id="pilot-content-supply" style="display:none">
+  <div class="card" style="margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:5px;background:rgba(245,158,11,.15);color:#f59e0b;display:inline-block;margin-bottom:8px">SUPPLY CHAIN</div>
+        <div class="ct" style="font-size:16px;margin-bottom:4px">AI-Assisted Supply Chain Pilot — TBD</div>
+        <div style="font-size:12px;color:var(--muted)">6–8 week pilot · One critical material category · Corverxis Supply Chain AI</div>
+      </div>
+      <span class="badge info" style="white-space:nowrap">Phase 2 — Pilot Proposal</span>
+    </div>
+  </div>
+
+  <div class="kg">
+    <div class="kpi"><div class="kpi-l">Forecast Error Reduction</div><div class="kpi-v" style="color:var(--green)">32–36%</div><div class="kpi-s">AI + real-time data (E2open benchmark)</div></div>
+    <div class="kpi"><div class="kpi-l">Reduction, Best-in-Class</div><div class="kpi-v" style="color:var(--ocean)">Up to 50%</div><div class="kpi-s">DP World / Supply Chain Dive playbook</div></div>
+    <div class="kpi"><div class="kpi-l">Lost-Sale Reduction</div><div class="kpi-v" style="color:var(--purple)">Up to 65%</div><div class="kpi-s">Same playbook, stockout-driven losses</div></div>
+    <div class="kpi"><div class="kpi-l">Recommended Duration</div><div class="kpi-v" style="color:var(--amber)">6–8 wks</div><div class="kpi-s">Single-category scope</div></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin-bottom:14px">
+    <div class="card">
+      <div class="ct">Executive Summary</div>
+      <div style="font-size:12px;color:#9ca3af;line-height:1.7">
+        TBD sources specialty steel, aluminum, and precision-grade raw materials to meet just-in-time delivery windows set by automotive OEM customers. A stockout on a critical material stops production; excess inventory ties up working capital. Both are direct, measurable costs of forecast error.
+        <br><br>
+        This pilot proposes Corverxis Supply Chain AI — AI-assisted demand forecasting and reorder-point optimization — on one high-criticality material category, to demonstrate a measurable reduction in forecast error and the safety stock required to protect against it.
+        <br><br>
+        Every AI-suggested reorder point is a recommendation the buyer confirms or overrides — overrides and reasons are logged explicitly, since that context is exactly what the model can't see on its own.
+      </div>
+    </div>
+    <div class="card">
+      <div class="ct">Industry Context</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:11px;color:#9ca3af">
+        <div style="padding:8px;background:rgba(34,197,94,.06);border-left:3px solid #22c55e;border-radius:4px">E2open Benchmark Study (2021, 2024): AI + real-time demand sensing cut forecast error by <b style="color:#e2e8f0">32–36%</b>, based on real operational data.</div>
+        <div style="padding:8px;background:rgba(0,194,224,.06);border-left:3px solid #00c2e0;border-radius:4px">DP World / Supply Chain Dive (2025): AI adopters report up to <b style="color:#e2e8f0">50%</b> fewer forecast errors, <b style="color:#e2e8f0">65%</b> fewer lost sales.</div>
+        <div style="padding:8px;background:rgba(245,158,11,.06);border-left:3px solid #f59e0b;border-radius:4px">KPMG: each 1-point forecast accuracy gain → <b style="color:#e2e8f0">1–2%</b> drop in inventory levels.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="ct">Why AI-Assisted Supply Chain Is a High-Value Pilot</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+      <div style="background:var(--navy3);border-radius:8px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#f59e0b;margin-bottom:4px">1. Directly Calculable Cost</div>
+        <div style="font-size:10.5px;color:#9ca3af;line-height:1.4">A stockout or overstock has a directly quantifiable dollar cost — easy to measure pilot success against.</div>
+      </div>
+      <div style="background:var(--navy3);border-radius:8px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#f59e0b;margin-bottom:4px">2. Strengthens Buyer Judgment</div>
+        <div style="font-size:10.5px;color:#9ca3af;line-height:1.4">The forecast is a recommendation the buyer confirms or overrides — augments, doesn't replace, purchasing judgment.</div>
+      </div>
+      <div style="background:var(--navy3);border-radius:8px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#f59e0b;margin-bottom:4px">3. Existing Data, Fast Start</div>
+        <div style="font-size:10.5px;color:#9ca3af;line-height:1.4">Builds on existing ERP/MES purchase history — useful signal from day one, no new sensor infrastructure.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="ct" style="padding:14px 14px 0">Recommended Pilot Scope</div>
+      <table>
+        <tr><th>Dimension</th><th>Scope</th></tr>
+        <tr><td>Material</td><td>One high-criticality category, known error/stockout history</td></tr>
+        <tr><td>Suppliers</td><td>1–2 primary suppliers for the category</td></tr>
+        <tr><td>Duration</td><td>6–8 weeks incl. data validation</td></tr>
+        <tr><td>Team</td><td>Supply chain lead, 1–2 buyers, Corverxis engineer</td></tr>
+      </table>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="ct" style="padding:14px 14px 0">Implementation Timeline</div>
+      <table>
+        <tr><th>Week</th><th>Phase</th><th>Focus</th></tr>
+        <tr><td>1–2</td><td>Data Validation</td><td>Consumption history, supplier lead-time check</td></tr>
+        <tr><td>3–4</td><td>Live Forecasting</td><td>AI reorder suggestions; buyer confirms/overrides</td></tr>
+        <tr><td>5–6</td><td>Live Forecasting</td><td>Continue; mid-pilot accuracy check-in</td></tr>
+        <tr><td>7</td><td>Results Review</td><td>Forecast error & stockout comparison</td></tr>
+        <tr><td>8</td><td>Decision Point</td><td>Recommend Phase 3 scope</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="ct">Success Metrics &amp; KPIs</div>
+    <table>
+      <tr><th>Metric</th><th>Baseline</th><th>Pilot Target</th></tr>
+      <tr><td>Forecast error (pilot category)</td><td>Current 90-day avg</td><td>Targeting 30–50% error reduction</td></tr>
+      <tr><td>Stockout incidents</td><td>Current 90-day avg</td><td>Reduced vs. baseline</td></tr>
+      <tr><td>Safety stock / carrying cost</td><td>Current baseline</td><td>Reduced without added stockout risk</td></tr>
+      <tr><td>Buyer course completion</td><td>0%</td><td>100% before go-live</td></tr>
+    </table>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+    <div class="card">
+      <div class="ct">Illustrative Business Case</div>
+      <div style="font-size:10.5px;color:#6b7280;font-style:italic;margin-bottom:10px">Industry-benchmark illustrations, not a guarantee for any specific facility.</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:11px;color:#9ca3af">
+        <div>• E2open: AI cuts forecast error 32–36%; DP World/Supply Chain Dive reports up to 50%.</div>
+        <div>• KPMG: each 1-point forecast accuracy gain → 1–2% drop in inventory levels.</div>
+        <div>• DP World: up to 65% fewer lost sales among AI-forecasting adopters.</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ct">Key Risks &amp; Mitigations</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:11px;color:#9ca3af">
+        <div>• <b style="color:#e2e8f0">Inconsistent historical data</b> → dedicated data-validation phase before live forecasting</div>
+        <div>• <b style="color:#e2e8f0">Stale supplier lead times</b> → cross-checked against live Supplier Management data</div>
+        <div>• <b style="color:#e2e8f0">Buyer distrust</b> → transparent forecast-vs-actual comparison, not a promised number</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="ct">Path to Scale</div>
+    <div style="font-size:12px;color:#9ca3af;line-height:1.6">
+      A successful pilot supports two tracks: <b style="color:#e2e8f0">horizontal</b> — extending AI-assisted forecasting to additional material categories, prioritized by criticality — and <b style="color:#e2e8f0">vertical</b> — using override-reason data to refine the model's handling of TBD-specific patterns a generic model wouldn't know. The pilot's most durable outcome is a buying team that trusts the forecast as a genuine second opinion, not a black box.
+    </div>
+  </div>
+
+  <div style="padding:10px 12px;background:rgba(0,194,224,.06);border:1px solid rgba(0,194,224,.15);border-radius:8px;font-size:10.5px;color:#6b7280;font-style:italic">
+    Sources: E2open Forecasting and Inventory Benchmark Study (2021, 2024) · DP World / Supply Chain Dive 2025 AI supply chain playbook · KPMG research on demand planning and forecast accuracy. Figures are directional industry benchmarks; the pilot itself is designed to produce facility-specific figures for TBD.
+  </div>
+  </div>
+  <div id="pilot-content-process" style="display:none">
+  <div class="card" style="margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:5px;background:rgba(34,197,94,.15);color:#22c55e;display:inline-block;margin-bottom:8px">PROCESS OPTIMIZATION</div>
+        <div class="ct" style="font-size:16px;margin-bottom:4px">Golden Batch Pilot — TBD</div>
+        <div style="font-size:12px;color:var(--muted)">5–7 week pilot · One CNC cell / part number · Corverxis Golden Batch Analytics</div>
+      </div>
+      <span class="badge info" style="white-space:nowrap">Phase 2 — Pilot Proposal</span>
+    </div>
+  </div>
+
+  <div class="kg">
+    <div class="kpi"><div class="kpi-l">First Run Yield Gain</div><div class="kpi-v" style="color:var(--green)">98.4→99.03%</div><div class="kpi-s">Documented DMAIC case study, automotive sensor</div></div>
+    <div class="kpi"><div class="kpi-l">Sigma Improvement</div><div class="kpi-v" style="color:var(--ocean)">3.65→3.85</div><div class="kpi-s">Same case study</div></div>
+    <div class="kpi"><div class="kpi-l">Data Source</div><div class="kpi-v" style="color:var(--purple)">Existing MES</div><div class="kpi-s">No new sensor infrastructure required</div></div>
+    <div class="kpi"><div class="kpi-l">Recommended Duration</div><div class="kpi-v" style="color:var(--amber)">5–7 wks</div><div class="kpi-s">Single part-number scope</div></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin-bottom:14px">
+    <div class="card">
+      <div class="ct">Executive Summary</div>
+      <div style="font-size:12px;color:#9ca3af;line-height:1.7">
+        Every CNC machining operation at TBD has dozens of adjustable parameters — spindle speed, feed rate, coolant pressure, dwell time. Experienced operators develop real intuition for "good" settings, but that intuition is hard to transfer, hard to prove optimal, and slow to update.
+        <br><br>
+        This pilot proposes Corverxis Golden Batch Analytics — AI analysis of historical MES data — on one CNC cell and part number with known scrap-rate variability, to identify the parameter combination that most consistently minimizes scrap, cycle time, and tool wear together, validated through a controlled floor trial.
+        <br><br>
+        A directly relevant precedent: a documented Lean Six Sigma DMAIC case study on an automotive-sensor sub-process improved First Run Yield from 98.4% to 99.03% — the same discipline of measuring before acting that underlies this pilot.
+      </div>
+    </div>
+    <div class="card">
+      <div class="ct">Industry Context</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:11px;color:#9ca3af">
+        <div style="padding:8px;background:rgba(34,197,94,.06);border-left:3px solid #22c55e;border-radius:4px">Documented DMAIC case study (airbag sensor "Overmould line"): First Run Yield <b style="color:#e2e8f0">98.4% → 99.03%</b>, Sigma <b style="color:#e2e8f0">3.65 → 3.85</b>.</div>
+        <div style="padding:8px;background:rgba(0,194,224,.06);border-left:3px solid #00c2e0;border-radius:4px">AI-driven analysis reviews far more historical parameter-outcome combinations than a manual DMAIC study can practically cover by hand.</div>
+        <div style="padding:8px;background:rgba(139,92,246,.06);border-left:3px solid #8b5cf6;border-radius:4px">Core discipline is unchanged: measure with real data, find true root cause, test, then monitor — AI extends reach, doesn't replace the method.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="ct">Why Process Optimization Is a High-Value Pilot</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+      <div style="background:var(--navy3);border-radius:8px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#22c55e;margin-bottom:4px">1. Data Already Exists</div>
+        <div style="font-size:10.5px;color:#9ca3af;line-height:1.4">Draws on historical MES work-order data already being captured — no new sensor infrastructure.</div>
+      </div>
+      <div style="background:var(--navy3);border-radius:8px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#22c55e;margin-bottom:4px">2. Directly Measurable</div>
+        <div style="font-size:10.5px;color:#9ca3af;line-height:1.4">Judged against scrap rate, cycle time, tool life — metrics the floor already tracks.</div>
+      </div>
+      <div style="background:var(--navy3);border-radius:8px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#22c55e;margin-bottom:4px">3. Reinforces Expertise</div>
+        <div style="font-size:10.5px;color:#9ca3af;line-height:1.4">AI surfaces candidates; operator judgment still validates every real trial run.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="ct" style="padding:14px 14px 0">Recommended Pilot Scope</div>
+      <table>
+        <tr><th>Dimension</th><th>Scope</th></tr>
+        <tr><td>Part / cell</td><td>One part number, documented scrap/cycle variability</td></tr>
+        <tr><td>Data</td><td>6–12 months historical MES work orders</td></tr>
+        <tr><td>Duration</td><td>5–7 weeks incl. controlled trial</td></tr>
+        <tr><td>Team</td><td>Process engineer, 1–2 operators, Corverxis engineer</td></tr>
+      </table>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="ct" style="padding:14px 14px 0">Implementation Timeline</div>
+      <table>
+        <tr><th>Week</th><th>Phase</th><th>Focus</th></tr>
+        <tr><td>1–2</td><td>Data Analysis</td><td>Ingest & validate historical MES data</td></tr>
+        <tr><td>3</td><td>Candidate ID</td><td>Model surfaces candidate combination(s)</td></tr>
+        <tr><td>4–5</td><td>Controlled Trial</td><td>Trial batch vs. model prediction</td></tr>
+        <tr><td>6</td><td>Results Review</td><td>Before/after comparison</td></tr>
+        <tr><td>7</td><td>Decision Point</td><td>Recommend Phase 3 scope</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="ct">Success Metrics &amp; KPIs</div>
+    <table>
+      <tr><th>Metric</th><th>Baseline</th><th>Pilot Target</th></tr>
+      <tr><td>Scrap rate (pilot part)</td><td>Current 90-day avg</td><td>Measurable reduction, trial-validated</td></tr>
+      <tr><td>Cycle time</td><td>Current baseline</td><td>At or better, confirmed by trial</td></tr>
+      <tr><td>Tool wear / tool life</td><td>Current baseline</td><td>No degradation; ideally improved</td></tr>
+      <tr><td>Process engineer/operator course completion</td><td>0%</td><td>100% before trial begins</td></tr>
+    </table>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+    <div class="card">
+      <div class="ct">Illustrative Business Case</div>
+      <div style="font-size:10.5px;color:#6b7280;font-style:italic;margin-bottom:10px">Based on a specific documented case study, not a guarantee for any other facility.</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:11px;color:#9ca3af">
+        <div>• Documented DMAIC case: FRY 98.4% → 99.03% on a comparable automotive-component sub-process.</div>
+        <div>• Even a fraction-of-a-percent scrap reduction is meaningful at automotive production volume.</div>
+        <div>• A "fast" setting that increases tool wear isn't optimal once tooling cost is included — the multi-metric evaluation Golden Batch performs.</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ct">Key Risks &amp; Mitigations</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:11px;color:#9ca3af">
+        <div>• <b style="color:#e2e8f0">Incomplete MES data</b> → dedicated validation phase before any candidate is surfaced</div>
+        <div>• <b style="color:#e2e8f0">Trial doesn't match prediction</b> → investigated for root cause (tooling/material lot), not dismissed</div>
+        <div>• <b style="color:#e2e8f0">Operator skepticism</b> → operators define what the trial validates, not told the result after the fact</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="ct">Path to Scale</div>
+    <div style="font-size:12px;color:#9ca3af;line-height:1.6">
+      A successful pilot supports two tracks: <b style="color:#e2e8f0">horizontal</b> — extending Golden Batch analysis to additional part numbers with documented variability — and <b style="color:#e2e8f0">vertical</b> — feeding validated trial data back into a model that gets more accurate as more part numbers contribute real floor-validation results. The pilot's most durable outcome is a process team that has seen a data-surfaced recommendation hold up under real floor validation.
+    </div>
+  </div>
+
+  <div style="padding:10px 12px;background:rgba(0,194,224,.06);border:1px solid rgba(0,194,224,.15);border-radius:8px;font-size:10.5px;color:#6b7280;font-style:italic">
+    Sources: documented Lean Six Sigma DMAIC case study on scrap-rate reduction in automotive airbag sensor production (published case study) · general industry research on AI-driven process optimization and yield improvement. Figures are specific to the documented case; the pilot itself is designed to produce facility-specific figures for TBD.
+  </div>
+  </div>
+
+
 </div>
 
 </div>
@@ -8387,6 +8771,16 @@ var _staticIncidents = [
   { id:'inc-003', system:'AI Scheduler',    severity:'LOW',    title:'Scheduler upgrade v2.4.1 available', desc:'Vendor released multi-constraint optimisation for mixed-model lines. Testing in staging. Deployment: next maintenance window.', area:'All Lines', owner:'IT Ops', status:'OPEN', created:'5 days ago' },
   { id:'inc-004', system:'NexGen Ultra',    severity:'LOW',    title:'Cybersecurity policy review — AI data access permissions', desc:'Quarterly IT Security review of AI data access. 2 minor permission adjustments required. IT ticket IT-8821 raised.', area:'Platform', owner:'IT Security', status:'OPEN', created:'1 week ago' },
 ];
+
+function showPilot(key) {
+  document.querySelectorAll('.scm-tab[id^="pstab-"]').forEach(function(t){
+    t.classList.toggle('active', t.id === 'pstab-' + key);
+  });
+  ['pm','vision','supply','process'].forEach(function(k){
+    var el = document.getElementById('pilot-content-' + k);
+    if (el) el.style.display = (k === key) ? 'block' : 'none';
+  });
+}
 
 function aioTab(name) {
   document.querySelectorAll('.scm-tab[id^="aiotab-"]').forEach(function(t){
