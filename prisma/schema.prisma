@@ -42,6 +42,11 @@ model Org {
   changeRisks    ChangeRisk[]
   changeTrainingModels ChangeTrainingModel[]
   labProjects    LabProject[]
+  labDataSources LabDataSource[]
+  labPipelines   LabPipeline[]
+  labDatasets    LabDataset[]
+  labTrainingJobs LabTrainingJob[]
+  labModels      LabModel[]
 
   @@map("orgs")
 }
