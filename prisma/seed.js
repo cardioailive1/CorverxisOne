@@ -632,6 +632,11 @@ main()
     } catch (e) {
       console.error('⚠ Change Management seed error (non-fatal, deploy continues):', e.message);
     }
+    try {
+      await require('./seed-lab').seedLab();
+    } catch (e) {
+      console.error('⚠ CorverxisLab seed error (non-fatal, deploy continues):', e.message);
+    }
   })
   .catch((e) => { console.error('❌ Seed failed:', e); process.exit(1); })
   .finally(async () => { await prisma.$disconnect(); });

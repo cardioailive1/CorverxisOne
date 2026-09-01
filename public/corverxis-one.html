@@ -193,6 +193,9 @@ tr:hover td{background:rgba(255,255,255,0.02);}
   <button class="nav-item" id="ni-academy" onclick="nav('academy')">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c0 1.5 2.5 3 6 3s6-1.5 6-3v-5"/></svg>CorverxisAcademy
   </button>
+  <button class="nav-item" id="ni-lab" onclick="nav('lab')">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 2v6L3 20a1 1 0 0 0 1 2h16a1 1 0 0 0 1-2l-6-12V2"/><path d="M9 2h6"/><path d="M8.5 14h7"/></svg>CorverxisLab
+  </button>
   <button class="nav-item" id="ni-erp" onclick="nav('erp')">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>ERP Integration Hub
   </button>
@@ -2025,6 +2028,7 @@ tr:hover td{background:rgba(255,255,255,0.02);}
     <div style="font-size:12px;color:#9ca3af;line-height:1.6">
       A successful pilot supports two scaling tracks: <b style="color:#e2e8f0">horizontal</b> — extending predictive maintenance to additional CNC cells using the validated sensor/alerting architecture — and <b style="color:#e2e8f0">vertical</b> — applying the trust and data foundation built here to the next AI adoption pillars already defined in the roadmap: computer-vision quality inspection, AI-assisted supply and inventory planning, and process (Golden Batch) optimization. The pilot's greatest asset isn't the technology validation — it's a floor team that has personally seen the system prevent a real problem.
     </div>
+    <button class="btn btn-primary" style="margin-top:12px;padding:8px 16px;background:#00c2e0;border:none;border-radius:7px;color:#0a1628;font-size:12px;font-weight:700;cursor:pointer" onclick="openPilotLab('PREDICTIVE_MAINTENANCE')">⬡ Open in CorverxisLab — Build This Pilot →</button>
   </div>
 
   <div style="padding:10px 12px;background:rgba(0,194,224,.06);border:1px solid rgba(0,194,224,.15);border-radius:8px;font-size:10.5px;color:#6b7280;font-style:italic">
@@ -2150,6 +2154,7 @@ tr:hover td{background:rgba(255,255,255,0.02);}
     <div style="font-size:12px;color:#9ca3af;line-height:1.6">
       A successful pilot supports two tracks: <b style="color:#e2e8f0">horizontal</b> — extending Corverxis Vision to additional inspection stations and defect types — and <b style="color:#e2e8f0">vertical</b> — tighter integration with the NCR and corrective-action workflow already in CorverxisONE. The pilot's most durable outcome is a quality team that has personally verified the AI system's judgment against their own, station by station.
     </div>
+    <button class="btn btn-primary" style="margin-top:12px;padding:8px 16px;background:#00c2e0;border:none;border-radius:7px;color:#0a1628;font-size:12px;font-weight:700;cursor:pointer" onclick="openPilotLab('QUALITY_CONTROL')">⬡ Open in CorverxisLab — Build This Pilot →</button>
   </div>
 
   <div style="padding:10px 12px;background:rgba(0,194,224,.06);border:1px solid rgba(0,194,224,.15);border-radius:8px;font-size:10.5px;color:#6b7280;font-style:italic">
@@ -2274,6 +2279,7 @@ tr:hover td{background:rgba(255,255,255,0.02);}
     <div style="font-size:12px;color:#9ca3af;line-height:1.6">
       A successful pilot supports two tracks: <b style="color:#e2e8f0">horizontal</b> — extending AI-assisted forecasting to additional material categories, prioritized by criticality — and <b style="color:#e2e8f0">vertical</b> — using override-reason data to refine the model's handling of TBD-specific patterns a generic model wouldn't know. The pilot's most durable outcome is a buying team that trusts the forecast as a genuine second opinion, not a black box.
     </div>
+    <button class="btn btn-primary" style="margin-top:12px;padding:8px 16px;background:#00c2e0;border:none;border-radius:7px;color:#0a1628;font-size:12px;font-weight:700;cursor:pointer" onclick="openPilotLab('SUPPLY_CHAIN')">⬡ Open in CorverxisLab — Build This Pilot →</button>
   </div>
 
   <div style="padding:10px 12px;background:rgba(0,194,224,.06);border:1px solid rgba(0,194,224,.15);border-radius:8px;font-size:10.5px;color:#6b7280;font-style:italic">
@@ -2398,6 +2404,7 @@ tr:hover td{background:rgba(255,255,255,0.02);}
     <div style="font-size:12px;color:#9ca3af;line-height:1.6">
       A successful pilot supports two tracks: <b style="color:#e2e8f0">horizontal</b> — extending Golden Batch analysis to additional part numbers with documented variability — and <b style="color:#e2e8f0">vertical</b> — feeding validated trial data back into a model that gets more accurate as more part numbers contribute real floor-validation results. The pilot's most durable outcome is a process team that has seen a data-surfaced recommendation hold up under real floor validation.
     </div>
+    <button class="btn btn-primary" style="margin-top:12px;padding:8px 16px;background:#00c2e0;border:none;border-radius:7px;color:#0a1628;font-size:12px;font-weight:700;cursor:pointer" onclick="openPilotLab('PROCESS_OPTIMIZATION')">⬡ Open in CorverxisLab — Build This Pilot →</button>
   </div>
 
   <div style="padding:10px 12px;background:rgba(0,194,224,.06);border:1px solid rgba(0,194,224,.15);border-radius:8px;font-size:10.5px;color:#6b7280;font-style:italic">
@@ -3731,6 +3738,15 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 </iframe>
 </div>
 
+<div class="page" id="pg-lab">
+<iframe
+  id="lab-frame"
+  style="width:100%;height:calc(100vh - 88px);border:none;display:block;"
+  src=""
+  title="CorverxisLab AI Engineering &amp; Data Infrastructure">
+</iframe>
+</div>
+
 <!-- CHANGE MANAGEMENT — AI adoption rollout, sentiment, training, communications, risk register -->
 <div class="page" id="pg-changemgmt">
 <div class="pt">Change Management</div>
@@ -3902,6 +3918,26 @@ function loadAcademyFrame(params) {
     // same way — always shows the general catalog in that mode.
     academyLoaded = true;
     frame.srcdoc = atob(academyB64);
+  }
+}
+
+var labLoaded = false;
+function loadLabFrame(pillar) {
+  var frame = document.getElementById('lab-frame');
+  if (!frame) return;
+  var isHosted = location.hostname !== '' && location.protocol !== 'file:';
+  var qs = pillar ? ('?pillar=' + encodeURIComponent(pillar)) : '';
+  if (isHosted) {
+    // Unlike Academy/HRIM (load once), Lab needs to jump to a specific
+    // pillar project when opened from a Pilot Study card — so this
+    // always resets src when a pillar is requested, not just on first load.
+    if (!labLoaded || pillar) {
+      labLoaded = true;
+      frame.src = '/lab' + qs;
+    }
+  } else {
+    labLoaded = true;
+    frame.srcdoc = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#0a1628;color:#9ca3af;font-family:Inter,sans-serif;font-size:13px;text-align:center;padding:40px">CorverxisLab requires the hosted CorverxisONE server (it talks to /api/v1/lab) — open this deployment on Render to use it, rather than the local offline file.</div>';
   }
 }
 
@@ -8772,6 +8808,14 @@ var _staticIncidents = [
   { id:'inc-004', system:'NexGen Ultra',    severity:'LOW',    title:'Cybersecurity policy review — AI data access permissions', desc:'Quarterly IT Security review of AI data access. 2 minor permission adjustments required. IT ticket IT-8821 raised.', area:'Platform', owner:'IT Security', status:'OPEN', created:'1 week ago' },
 ];
 
+// Deep-links a Pilot Study card into its matching CorverxisLab project —
+// the technical build environment (data sources, pipelines, datasets,
+// training jobs, models) behind that specific pillar's pilot.
+function openPilotLab(pillar) {
+  nav('lab');
+  if (typeof loadLabFrame === 'function') loadLabFrame(pillar);
+}
+
 function showPilot(key) {
   document.querySelectorAll('.scm-tab[id^="pstab-"]').forEach(function(t){
     t.classList.toggle('active', t.id === 'pstab-' + key);
@@ -11813,6 +11857,7 @@ function nav(id) {
   if (id==='vision')      { if(typeof loadVisionFrame==='function')      loadVisionFrame(); }
   if (id==='hrim')        { if(typeof loadHrimFrame==='function')        loadHrimFrame(); }
   if (id==='academy')     { if(typeof loadAcademyFrame==='function')     loadAcademyFrame(); }
+  if (id==='lab')         { if(typeof loadLabFrame==='function')         loadLabFrame(); }
   if (id==='changemgmt')  { if(typeof loadChangeMgmtPage==='function')    loadChangeMgmtPage(); }
 }
 

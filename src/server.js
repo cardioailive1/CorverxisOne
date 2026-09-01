@@ -46,6 +46,7 @@ const improvementRouter = require('./routes/improvement');
 const apiRouter      = require('./routes/api');
 const hrimRouter     = require('./routes/hrim');
 const changeRouter   = require('./routes/change');
+const labRouter      = require('./routes/lab');
 
 const app    = express();
 const server = http.createServer(app);
@@ -92,6 +93,7 @@ app.use('/api/v1', improvementRouter); // automation/ncrs + automation/log sub-r
 app.use('/api/v1', apiRouter);
 app.use('/api/v1', hrimRouter);
 app.use('/api/v1', changeRouter);
+app.use('/api/v1', labRouter);
 
 // ── Public routes ─────────────────────────────────────────────────────────────
 app.get('/api/health', async (req, res) => {
@@ -218,6 +220,12 @@ app.get('/academy', requireSession, (req, res) => {
   const f = path.join(PUBLIC, 'corverxis-academy.html');
   if (fs.existsSync(f)) { res.set('Cache-Control', 'no-store'); return res.sendFile(f); }
   res.status(404).send('corverxis-academy.html not found in public/');
+});
+
+app.get('/lab', requireSession, (req, res) => {
+  const f = path.join(PUBLIC, 'corverxis-lab.html');
+  if (fs.existsSync(f)) { res.set('Cache-Control', 'no-store'); return res.sendFile(f); }
+  res.status(404).send('corverxis-lab.html not found in public/');
 });
 
 // ── Protected API routes ──────────────────────────────────────────────────────

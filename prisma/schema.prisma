@@ -41,6 +41,7 @@ model Org {
   changeCommunications ChangeCommunication[]
   changeRisks    ChangeRisk[]
   changeTrainingModels ChangeTrainingModel[]
+  labProjects    LabProject[]
 
   @@map("orgs")
 }
@@ -1200,4 +1201,225 @@ model ChangeTrainingModel {
 
   @@index([orgId])
   @@map("change_training_models")
+}
+
+// ══════════════════════════════════════════════════════════════
+//  CorverxisLab — the technical build environment behind every
+//  pilot: client site onboarding, data infrastructure, pipelines,
+//  datasets, and ML/LLM model training. Each pilot study (Predictive
+//  Maintenance, Vision QC, Supply Chain AI, Process Optimization)
+//  maps to exactly one LabProject, so the Lab is the literal build
+//  block the Pilot Studies tab links out to.
+// ══════════════════════════════════════════════════════════════
+
+model LabProject {
+  id             String   @id @default(cuid())
+  orgId          String
+  org            Org      @relation(fields: [orgId], references: [id])
+  title          String
+  pillar         LabPillar
+  phase          LabProjectPhase @default(SITE_ONBOARDING)
+  clientSiteName String?  // e.g. "TBD — Precision Machining Cell 3"
+  description    String?  @db.Text
+  courseSlug     String?  // ties back to the matching CorverxisAcademy course, if any
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  dataSources    LabDataSource[]
+  pipelines      LabPipeline[]
+  datasets       LabDataset[]
+  trainingJobs   LabTrainingJob[]
+  models         LabModel[]
+
+  @@index([orgId])
+  @@map("lab_projects")
+}
+
+enum LabPillar {
+  PREDICTIVE_MAINTENANCE
+  QUALITY_CONTROL
+  SUPPLY_CHAIN
+  PROCESS_OPTIMIZATION
+  GENERAL
+}
+
+enum LabProjectPhase {
+  SITE_ONBOARDING          // clean & integrate the client plant site
+  DATA_INFRASTRUCTURE      // stand up the pipeline/warehouse
+  COLLECTION_PROCESSING    // ingest & clean real data
+  TRAINING_PIPELINE        // build the dataset -> training pipeline
+  MODEL_TRAINING           // train ML/LLM models
+  VALIDATION               // floor/production validation
+}
+
+model LabDataSource {
+  id              String   @id @default(cuid())
+  orgId           String
+  org             Org      @relation(fields: [orgId], references: [id])
+  projectId       String
+  project         LabProject @relation(fields: [projectId], references: [id])
+  name            String   // e.g. "Line 3 IIoT Gateway", "Plex MES Export"
+  type            LabDataSourceType
+  status          LabDataSourceStatus @default(NOT_CONNECTED)
+  recordsIngested Int      @default(0)
+  lastSyncAt      DateTime?
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([orgId])
+  @@index([projectId])
+  @@map("lab_data_sources")
+}
+
+enum LabDataSourceType {
+  ERP
+  MES
+  IIOT_SENSOR
+  SCADA_HISTORIAN
+  VISION_CAMERA
+  FILE_UPLOAD
+  API_FEED
+}
+
+enum LabDataSourceStatus {
+  NOT_CONNECTED
+  CONNECTING
+  CONNECTED
+  ERROR
+}
+
+model LabPipeline {
+  id               String   @id @default(cuid())
+  orgId            String
+  org              Org      @relation(fields: [orgId], references: [id])
+  projectId        String
+  project          LabProject @relation(fields: [projectId], references: [id])
+  name             String
+  stage            LabPipelineStage
+  status           LabPipelineStatus @default(DRAFT)
+  recordsProcessed Int      @default(0)
+  lastRunAt        DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([orgId])
+  @@index([projectId])
+  @@map("lab_pipelines")
+}
+
+enum LabPipelineStage {
+  INGESTION
+  CLEANING
+  TRANSFORMATION
+  FEATURE_ENGINEERING
+  LABELING
+}
+
+enum LabPipelineStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  FAILED
+}
+
+model LabDataset {
+  id           String   @id @default(cuid())
+  orgId        String
+  org          Org      @relation(fields: [orgId], references: [id])
+  projectId    String
+  project      LabProject @relation(fields: [projectId], references: [id])
+  name         String
+  version      String   @default("v1")
+  rowCount     Int      @default(0)
+  sizeMb       Float    @default(0)
+  splitTrainPct Float   @default(70)
+  splitValPct   Float   @default(15)
+  splitTestPct  Float   @default(15)
+  createdAt    DateTime @default(now())
+
+  trainingJobs LabTrainingJob[]
+
+  @@index([orgId])
+  @@index([projectId])
+  @@map("lab_datasets")
+}
+
+model LabTrainingJob {
+  id           String   @id @default(cuid())
+  orgId        String
+  org          Org      @relation(fields: [orgId], references: [id])
+  projectId    String
+  project      LabProject @relation(fields: [projectId], references: [id])
+  datasetId    String?
+  dataset      LabDataset? @relation(fields: [datasetId], references: [id])
+  modelType    LabModelType
+  baseModel    String?  // e.g. "Qwen 3.5 9B", "EKF Ensemble", "ResNet-50"
+  method       String?  // e.g. "LoRA", "QLoRA", "Full Fine-Tune", "Random Forest"
+  gpuTier      String?  // e.g. "Flash — Single GPU", "Pro — H100 80GB"
+  status       LabTrainingJobStatus @default(QUEUED)
+  progressPct  Float    @default(0)
+  metrics      Json?    // { accuracy, loss, f1, rul_mae, ... }
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime @default(now())
+
+  @@index([orgId])
+  @@index([projectId])
+  @@map("lab_training_jobs")
+}
+
+enum LabModelType {
+  CLASSICAL_ML
+  TIME_SERIES
+  VISION
+  LLM
+}
+
+enum LabTrainingJobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model LabModel {
+  id              String   @id @default(cuid())
+  orgId           String
+  org             Org      @relation(fields: [orgId], references: [id])
+  projectId       String
+  project         LabProject @relation(fields: [projectId], references: [id])
+  name            String
+  type            LabModelType
+  status          LabModelStatus @default(DRAFT)
+  latestVersion   String   @default("v1")
+  accuracyPct     Float?
+  deployedToPilot Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  versions        LabModelVersion[]
+
+  @@index([orgId])
+  @@index([projectId])
+  @@map("lab_models")
+}
+
+enum LabModelStatus {
+  DRAFT
+  STAGING
+  PRODUCTION
+  RETIRED
+}
+
+model LabModelVersion {
+  id            String   @id @default(cuid())
+  modelId       String
+  model         LabModel @relation(fields: [modelId], references: [id])
+  version       String
+  metrics       Json?
+  createdAt     DateTime @default(now())
+
+  @@index([modelId])
+  @@map("lab_model_versions")
 }
