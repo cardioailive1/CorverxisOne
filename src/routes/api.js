@@ -25,21 +25,24 @@ router.get('/dashboard/kpis', authenticate, requireRole('TECHNICIAN'), async (re
       visionSession,
       workOrders,
     ] = await Promise.all([
-      prisma.alert.count({ where: { resolved: false } }),
-      prisma.alert.count({ where: { resolved: false, severity: 'CRITICAL' } }),
+      prisma.alert.count({ where: { resolved: false, sensor: { asset: { orgId } } } }),
+      prisma.alert.count({ where: { resolved: false, severity: 'CRITICAL', sensor: { asset: { orgId } } } }),
       prisma.ncr.count({ where: { orgId, status: { not: 'CLOSED' } } }).catch(() => 0),
-      prisma.sensor.count(),
+      prisma.sensor.count({ where: { asset: { orgId } } }),
       prisma.sensor.count({
         where: {
+          asset: { orgId },
           readings: { some: { timestamp: { gte: new Date(Date.now() - 60000) } } }
         }
       }).catch(() => 0),
       prisma.prediction.findMany({
+        where: { sensor: { asset: { orgId } } },
         orderBy: { timestamp: 'desc' },
         take: 5,
         include: { sensor: { select: { name: true, unit: true } } },
       }),
       prisma.visionSession.findFirst({
+        where: { job: { orgId } },
         orderBy: { startedAt: 'desc' },
       }),
       prisma.workOrder.findMany({
@@ -80,7 +83,7 @@ router.get('/dashboard/kpis', authenticate, requireRole('TECHNICIAN'), async (re
 router.get('/alerts', authenticate, requireRole('TECHNICIAN'), async (req, res) => {
   try {
     const alerts = await prisma.alert.findMany({
-      where:   { resolved: false },
+      where:   { resolved: false, sensor: { asset: { orgId: req.user.orgId } } },
       orderBy: { createdAt: 'desc' },
       take:    20,
       include: { sensor: { select: { name: true, type: true, unit: true } } },
@@ -164,10 +167,12 @@ router.post('/work-orders', authenticate, requireRole('MANAGER'), async (req, re
 router.get('/sensors/live', authenticate, requireRole('TECHNICIAN'), async (req, res) => {
   try {
     const sensors = await prisma.sensor.findMany({
+      where: { asset: { orgId: req.user.orgId } }, // Sensor has no direct orgId — scoped via its Asset
       include: {
         readings: { orderBy: { timestamp: 'desc' }, take: 1 },
         alerts:   { where: { resolved: false }, orderBy: { createdAt: 'desc' }, take: 1 },
         asset:    { select: { name: true, vertical: true, location: true } },
+        activeModel: { select: { name: true, latestVersion: true, accuracyPct: true } },
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -184,6 +189,7 @@ router.get('/sensors/live', authenticate, requireRole('TECHNICIAN'), async (req,
         value: val !== null ? parseFloat(val.toFixed(3)) : null,
         status, warn: thr.warn, crit: thr.crit,
         vertical: s.asset?.vertical, asset: s.asset?.name, location: s.asset?.location,
+        activeModel: s.activeModel ? { name: s.activeModel.name, version: s.activeModel.latestVersion, accuracyPct: s.activeModel.accuracyPct } : null,
         lastReading: latest?.timestamp ?? null,
         hasAlert: s.alerts.length > 0,
         alertSeverity: s.alerts[0]?.severity ?? null,
@@ -201,6 +207,15 @@ router.get('/sensors/live', authenticate, requireRole('TECHNICIAN'), async (req,
 router.get('/sensors/:id/history', authenticate, requireRole('TECHNICIAN'), async (req, res) => {
   try {
     const { points = 100 } = req.query;
+    // Verify the sensor actually belongs to the caller's org before
+    // returning anything — without this, any authenticated user could
+    // read any other org's sensor history just by guessing/enumerating IDs.
+    const owned = await prisma.sensor.findFirst({
+      where: { id: req.params.id, asset: { orgId: req.user.orgId } },
+      select: { id: true },
+    });
+    if (!owned) return res.status(404).json({ error: 'Sensor not found' });
+
     const readings = await prisma.sensorReading.findMany({
       where:   { sensorId: req.params.id },
       orderBy: { timestamp: 'desc' },
@@ -218,6 +233,7 @@ router.get('/sensors/:id/history', authenticate, requireRole('TECHNICIAN'), asyn
 router.get('/predictions', authenticate, requireRole('TECHNICIAN'), async (req, res) => {
   try {
     const predictions = await prisma.prediction.findMany({
+      where: { sensor: { asset: { orgId: req.user.orgId } } },
       orderBy: { timestamp: 'desc' },
       take: 50,
       distinct: ['sensorId'],
@@ -284,15 +300,20 @@ router.post('/predictions', authenticate, requireRole('ENGINEER'), async (req, r
 // Replaces: hardcoded NCR-0291, NCR-0290 table
 router.get('/ncrs', authenticate, requireRole('TECHNICIAN'), async (req, res) => {
   try {
-    const { status, limit = 50 } = req.query;
+    const { status, severity, limit = 50, autoRaised, sourcePillar } = req.query;
     const where = { orgId: req.user.orgId };
     if (status) where.status = status;
+    if (severity) where.severity = severity;
+    if (autoRaised !== undefined) where.autoRaised = autoRaised === 'true';
+    if (sourcePillar) where.sourcePillar = sourcePillar;
 
     const ncrs = await prisma.ncr.findMany({
       where, orderBy: { createdAt: 'desc' }, take: parseInt(limit),
     }).catch(() => []);
 
-    res.json({ data: ncrs });
+    const autoRaisedCount = await prisma.ncr.count({ where: { orgId: req.user.orgId, autoRaised: true, status: { not: 'CLOSED' } } }).catch(() => 0);
+
+    res.json({ data: ncrs, autoRaisedOpenCount: autoRaisedCount });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -362,9 +383,10 @@ router.get('/lines', authenticate, requireRole('TECHNICIAN'), async (req, res) =
 router.get('/vision/sessions', authenticate, requireRole('TECHNICIAN'), async (req, res) => {
   try {
     const sessions = await prisma.visionSession.findMany({
+      where: { job: { orgId: req.user.orgId } },
       orderBy: { startedAt: 'desc' }, take: 10,
       include: {
-        job: { select: { name: true, partNumber: true } },
+        job: { select: { name: true, partNumber: true, activeModel: { select: { name: true, latestVersion: true, accuracyPct: true } } } },
         results: { orderBy: { timestamp: 'desc' }, take: 20 },
       },
     });
@@ -372,6 +394,9 @@ router.get('/vision/sessions', authenticate, requireRole('TECHNICIAN'), async (r
     res.json({
       data: sessions.map(s => ({
         id: s.id, job: s.job?.name, partNumber: s.job?.partNumber,
+        activeModel: s.job?.activeModel ? {
+          name: s.job.activeModel.name, version: s.job.activeModel.latestVersion, accuracyPct: s.job.activeModel.accuracyPct,
+        } : null,
         totalCount: s.totalCount, passCount: s.passCount, failCount: s.failCount,
         passRate: s.totalCount > 0 ? (s.passCount / s.totalCount * 100).toFixed(1) : '0.0',
         avgCycleMs: s.avgCycleMs,

@@ -394,8 +394,17 @@ body{background:var(--navy);color:var(--text);font-family:Inter,system-ui,sans-s
 
     <!-- STATS -->
     <div class="panel-content" id="panel-stats" style="display:none;">
+      <div class="section" id="live-plant-section" style="display:none;border-left:3px solid var(--ocean);padding-left:8px;">
+        <div class="section-title" style="color:var(--ocean)">● Live — Your Plant (Real Data)</div>
+        <div class="prop-row"><span class="prop-label">Total Inspected</span><span class="prop-val" id="live-total">—</span></div>
+        <div class="prop-row"><span class="prop-label">Pass</span><span class="prop-val" style="color:var(--green)" id="live-pass">—</span></div>
+        <div class="prop-row"><span class="prop-label">Fail</span><span class="prop-val" style="color:var(--red)" id="live-fail">—</span></div>
+        <div class="prop-row"><span class="prop-label">Pass Rate</span><span class="prop-val" style="color:var(--green)" id="live-rate">—</span></div>
+        <div class="prop-row"><span class="prop-label">Job</span><span class="prop-val" id="live-job">—</span></div>
+        <div class="prop-row" id="live-model-row" style="display:none"><span class="prop-label">Deployed Model</span><span class="prop-val" style="color:var(--ocean)" id="live-model">—</span></div>
+      </div>
       <div class="section">
-        <div class="section-title">Session Statistics</div>
+        <div class="section-title">Session Statistics <span style="color:var(--text3);font-weight:400;font-size:9px">(this browser's simulation)</span></div>
         <div class="prop-row"><span class="prop-label">Total Inspected</span><span class="prop-val" id="st-total">2,847</span></div>
         <div class="prop-row"><span class="prop-label">Pass</span><span class="prop-val" style="color:var(--green)" id="st-pass">2,800</span></div>
         <div class="prop-row"><span class="prop-label">Fail</span><span class="prop-val" style="color:var(--red)" id="st-fail">47</span></div>
@@ -1040,6 +1049,54 @@ function updateModel(v) {
 // Modes: sim | webcam | ws (WebSocket GigE bridge)
 // ═══════════════════════════════════════════════════
 var camSource = 'sim';
+
+// ══════════════════════════════════════════════════════════════
+//  LIVE PLANT DATA — separate from the simulator's own counters,
+//  which increment as this browser's simulation runs. This fetches
+//  real VisionSession/VisionResult data (written by a real
+//  inspection station via CorverxisLab's ingestion bridge) and
+//  shows it in its own clearly-labeled panel, rather than blending
+//  simulated and real inspection counts together.
+// ============================================================
+async function fetchLiveVisionStats() {
+  try {
+    var r = await fetch('/api/v1/vision/sessions', { credentials: 'same-origin' });
+    if (!r.ok) throw new Error('unavailable');
+    var body = await r.json();
+    var sessions = body.data || [];
+    if (!sessions.length) return; // no real inspection data for this org yet — leave the panel hidden
+
+    // Aggregate across all real sessions for this org, most recent job name shown
+    var totalReal = 0, passReal = 0, failReal = 0, latestJob = null, latestModel = null;
+    sessions.forEach(function(s) {
+      totalReal += s.totalCount; passReal += s.passCount; failReal += s.failCount;
+      if (!latestJob) latestJob = s.job;
+      if (!latestModel && s.activeModel) latestModel = s.activeModel;
+    });
+    if (!totalReal) return;
+
+    document.getElementById('live-total').textContent = totalReal.toLocaleString();
+    document.getElementById('live-pass').textContent = passReal.toLocaleString();
+    document.getElementById('live-fail').textContent = failReal.toLocaleString();
+    document.getElementById('live-rate').textContent = (passReal / totalReal * 100).toFixed(2) + '%';
+    document.getElementById('live-job').textContent = latestJob || '—';
+    if (latestModel) {
+      document.getElementById('live-model').textContent = latestModel.name + ' ' + latestModel.version +
+        (latestModel.accuracyPct ? ' (' + latestModel.accuracyPct.toFixed(1) + '% validated accuracy)' : '');
+      document.getElementById('live-model-row').style.display = 'flex';
+    } else {
+      document.getElementById('live-model-row').style.display = 'none';
+    }
+    document.getElementById('live-plant-section').style.display = 'block';
+  } catch (e) {
+    // No live data available for this org yet — the panel just stays
+    // hidden, which is the honest state (nothing fake shown in its place).
+  }
+}
+fetchLiveVisionStats();
+setInterval(fetchLiveVisionStats, 15000);
+
+
 var camStream = null;
 var wsConn = null;
 var wsFrame = null; // ImageBitmap from WS

@@ -897,6 +897,7 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 <div class="kg">
   <div class="kpi"><div class="kpi-l">First Pass Yield</div><div class="kpi-v" id="qms-kv-fpy" style="color:var(--green)">—</div><div class="kpi-s" id="qms-kv-fpy-s">Loading...</div></div>
   <div class="kpi"><div class="kpi-l">Open NCRs</div><div class="kpi-v" id="qms-kv-ncrs" style="color:var(--amber)">—</div><div class="kpi-s" id="qms-kv-ncrs-s">Loading...</div></div>
+  <div class="kpi"><div class="kpi-l">AI-Raised (Open)</div><div class="kpi-v" id="qms-kv-ai-ncrs" style="color:#00c2e0">—</div><div class="kpi-s">From Vision QC &amp; Predictive Maintenance</div></div>
   <div class="kpi"><div class="kpi-l">Critical NCRs</div><div class="kpi-v" id="qms-kv-crit" style="color:var(--red)">—</div><div class="kpi-s">Require immediate action</div></div>
   <div class="kpi"><div class="kpi-l">Customer PPM</div><div class="kpi-v" id="qms-kv-ppm" style="color:var(--green)">—</div><div class="kpi-s">Target &lt;50 PPM</div></div>
   <div class="kpi"><div class="kpi-l">Open SCARs</div><div class="kpi-v" id="qms-kv-scars" style="color:var(--amber)">—</div><div class="kpi-s">Supplier corrective actions</div></div>
@@ -927,6 +928,18 @@ tr:hover td{background:rgba(255,255,255,0.02);}
         <option value="OPEN">Open</option>
         <option value="IN_PROGRESS">In Progress</option>
         <option value="CLOSED">Closed</option>
+      </select>
+      <select id="qms-ncr-source" onchange="loadQMSNCRs()" style="padding:5px 10px;background:#112645;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text2);font-size:12px">
+        <option value="">All Sources</option>
+        <option value="true">AI-Raised Only</option>
+        <option value="false">Manual Only</option>
+      </select>
+      <select id="qms-ncr-pillar" onchange="loadQMSNCRs()" style="padding:5px 10px;background:#112645;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text2);font-size:12px">
+        <option value="">All Pillars</option>
+        <option value="QUALITY_CONTROL">Vision QC</option>
+        <option value="PREDICTIVE_MAINTENANCE">Predictive Maintenance</option>
+        <option value="SUPPLY_CHAIN">Supply Chain</option>
+        <option value="PROCESS_OPTIMIZATION">Process Optimization</option>
       </select>
     </div>
     <div style="display:flex;gap:8px">
@@ -2768,6 +2781,7 @@ tr:hover td{background:rgba(255,255,255,0.02);}
   <button class="scm-tab"        id="piatab-vsm"       onclick="piaTab('vsm')">Value Stream</button>
   <button class="scm-tab"        id="piatab-cnc"       onclick="piaTab('cnc')">CNC Operations</button>
   <button class="scm-tab"        id="piatab-auto"      onclick="piaTab('auto')">Automation Pipeline</button>
+  <button class="scm-tab"        id="piatab-goldenbatch" onclick="piaTab('goldenbatch')">AI Golden Batch</button>
 </div>
 
 <!-- ── ALL PROJECTS ────────────────────────────────────────── -->
@@ -3537,6 +3551,13 @@ tr:hover td{background:rgba(255,255,255,0.02);}
   </div>
 
 </div>
+
+<!-- ── AI GOLDEN BATCH RECOMMENDATIONS ─────────────────────── -->
+<div class="pia-panel" id="piapanel-goldenbatch" style="display:none">
+  <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Parameter combinations surfaced by trained Process Optimization models in CorverxisLab. Every recommendation requires floor validation before it's confirmed — nothing here changes a live machine setting automatically.</div>
+  <div id="gb-rec-list"><div style="text-align:center;padding:30px;color:var(--muted);font-size:12px">Loading...</div></div>
+</div>
+
 
 </div>
 
@@ -5044,7 +5065,11 @@ function renderSCARs() {
 
 <!-- ── DEMAND PLANNING TAB ──────────────────────────────────── -->
 <div class="scm-panel" id="scmpanel-demand" style="display:none">
-  <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:12px">AI Demand Forecast — Next 4 Weeks</div>
+  <div id="df-rec-section" style="margin-bottom:20px">
+    <div style="font-size:13px;font-weight:600;color:#00c2e0;margin-bottom:12px">● Live AI Recommendations — from CorverxisLab</div>
+    <div id="df-rec-list"><div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Loading...</div></div>
+  </div>
+  <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:12px">AI Demand Forecast — Next 4 Weeks <span style="color:var(--text3);font-weight:400;font-size:9px">(illustrative)</span></div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
     <div class="card">
       <div class="ct">Stock vs Demand</div>
@@ -6552,6 +6577,84 @@ function scmTab(name) {
   if (name === 'po')        loadPOs();
   if (name === 'scar')      loadSCARs();
   if (name === 'risk')      loadRisks();
+  if (name === 'demand')    loadDemandForecastRecs();
+}
+
+// ── Load Demand Forecast Recommendations (real, from CorverxisLab) ──
+async function loadDemandForecastRecs() {
+  var el = document.getElementById('df-rec-list');
+  if (!el) return;
+  el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Loading...</div>';
+  try {
+    var r = await fetch('/api/v1/lab/demand-forecast-recommendations', { credentials:'same-origin' });
+    if (!r.ok) throw new Error('unavailable');
+    var d = await r.json();
+    var recs = d.data || [];
+    if (!recs.length) {
+      el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">No demand forecast recommendations yet. Deploy a trained Supply Chain model in CorverxisLab against real inventory items to generate one.</div>';
+      return;
+    }
+    var STATUS_CLS = { PENDING_REVIEW:'warn', ACCEPTED:'ok', OVERRIDDEN:'muted' };
+    var pending = recs.filter(function(r){ return r.status === 'PENDING_REVIEW'; });
+    var history = recs.filter(function(r){ return r.status !== 'PENDING_REVIEW'; });
+
+    function renderCard(rec) {
+      var item = rec.inventoryItem || {};
+      var basis = rec.forecastBasis ? Object.keys(rec.forecastBasis).map(function(k) {
+        return k + ': ' + rec.forecastBasis[k];
+      }).join(' \u00b7 ') : '';
+      var timeline = (rec.statusHistory || []).slice().reverse().map(function(h) {
+        var dt = new Date(h.changedAt);
+        return '<div style="display:flex;gap:6px;font-size:9.5px;color:var(--muted);padding:2px 0;border-left:2px solid rgba(255,255,255,.08);padding-left:6px;margin-left:2px;flex-wrap:wrap">' +
+          '<span style="color:'+(STATUS_CLS[h.status]==='ok'?'#22c55e':'#f59e0b')+';font-weight:700">'+h.status.replace('_',' ')+'</span>' +
+          '<span>'+dt.toLocaleDateString()+' \u00b7 '+(h.changedBy||'unknown')+'</span>' +
+          (h.notes ? '<span style="color:var(--text2)">\u2014 '+h.notes+'</span>' : '') +
+        '</div>';
+      }).join('');
+      var histId = 'dfhist_' + rec.id;
+      return '<div class="card" style="margin:0">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">' +
+          '<div><div style="font-size:12.5px;font-weight:700;color:#e2e8f0">' + (item.partNumber||'Unknown Item') + '</div>' +
+          '<div style="font-size:10px;color:var(--muted)">' + (item.description||'') + '</div></div>' +
+          '<span class="badge ' + (STATUS_CLS[rec.status]||'info') + '" style="font-size:9px">' + rec.status.replace('_',' ') + '</span>' +
+        '</div>' +
+        '<div style="font-size:11px;color:var(--text2);margin-bottom:4px">Current: reorder ' + (item.reorderPoint!=null?item.reorderPoint:'\u2014') + ' \u00b7 safety ' + (item.safetyStock!=null?item.safetyStock:'\u2014') + '</div>' +
+        '<div style="font-size:11px;color:#00c2e0;margin-bottom:8px">Recommended: reorder ' + (rec.recommendedReorderPoint!=null?rec.recommendedReorderPoint:'\u2014') + ' \u00b7 safety ' + (rec.recommendedSafetyStock!=null?rec.recommendedSafetyStock:'\u2014') + '</div>' +
+        (basis ? '<div style="font-size:9.5px;color:var(--muted);margin-bottom:8px">Basis: ' + basis + '</div>' : '') +
+        (rec.status === 'PENDING_REVIEW' ? '<div style="display:flex;gap:6px;margin-bottom:6px">' +
+          '<button onclick="actionDemandForecastRec(\'' + rec.id + '\',\'ACCEPTED\')" style="padding:4px 10px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);border-radius:6px;color:#22c55e;font-size:10.5px;cursor:pointer">Accept</button>' +
+          '<button onclick="actionDemandForecastRec(\'' + rec.id + '\',\'OVERRIDDEN\')" style="padding:4px 10px;background:rgba(107,114,128,.12);border:1px solid rgba(107,114,128,.3);border-radius:6px;color:#9ca3af;font-size:10.5px;cursor:pointer">Override</button>' +
+        '</div>' : '') +
+        (timeline ? '<div><button onclick="document.getElementById(\''+histId+'\').style.display = document.getElementById(\''+histId+'\').style.display===\'block\'?\'none\':\'block\'" style="background:none;border:none;color:var(--muted);font-size:9.5px;cursor:pointer;text-decoration:underline;padding:0">History (' + (rec.statusHistory||[]).length + ')</button>' +
+          '<div id="'+histId+'" style="display:none;margin-top:4px">'+timeline+'</div></div>' : '') +
+      '</div>';
+    }
+
+    var html = '';
+    if (pending.length) {
+      html += '<div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Awaiting Review (' + pending.length + ')</div>';
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:20px">' + pending.map(renderCard).join('') + '</div>';
+    }
+    if (history.length) {
+      html += '<div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">History (' + history.length + ')</div>';
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">' + history.map(renderCard).join('') + '</div>';
+    }
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Could not load recommendations.</div>';
+  }
+}
+
+async function actionDemandForecastRec(id, status) {
+  var notes = prompt(status === 'ACCEPTED' ? 'Notes on accepting this (optional):' : 'Why override, and what values will you use instead? (optional)');
+  try {
+    var r = await fetch('/api/v1/lab/demand-forecast-recommendations/'+id, {
+      method:'PATCH', credentials:'same-origin', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ status: status, buyerNotes: notes || undefined }),
+    });
+    if (!r.ok) throw new Error('failed');
+    loadDemandForecastRecs();
+  } catch(e) { alert('Could not update recommendation: ' + e.message); }
 }
 
 // ── Load Suppliers ────────────────────────────────────────────
@@ -9339,6 +9442,85 @@ function piaTab(name) {
   if (name === 'vsm')       loadVSMTab();
   if (name === 'cnc')       { renderCNCMachines(); loadCNCProjects(); }
   if (name === 'auto')      loadAutoTab();
+  if (name === 'goldenbatch') loadGoldenBatchRecs();
+}
+
+async function loadGoldenBatchRecs() {
+  var el = document.getElementById('gb-rec-list');
+  if (!el) return;
+  el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:12px">Loading...</div>';
+  try {
+    var r = await fetch('/api/v1/lab/golden-batch-recommendations', { credentials:'same-origin' });
+    if (!r.ok) throw new Error('unavailable');
+    var d = await r.json();
+    var recs = d.data || [];
+    if (!recs.length) {
+      el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:12px">No Golden Batch recommendations yet. Deploy a trained Process Optimization model in CorverxisLab to generate one.</div>';
+      return;
+    }
+    var STATUS_CLS = { PENDING_TRIAL:'warn', VALIDATED:'ok', REJECTED:'err' };
+    var pending = recs.filter(function(r){ return r.status === 'PENDING_TRIAL'; });
+    var history = recs.filter(function(r){ return r.status !== 'PENDING_TRIAL'; });
+
+    function renderCard(rec) {
+      var params = rec.recommendedParams ? Object.keys(rec.recommendedParams).map(function(k) {
+        return '<span style="font-size:10.5px;color:var(--text2)">'+k+': <b style="color:#e2e8f0">'+rec.recommendedParams[k]+'</b></span>';
+      }).join(' &nbsp;\u00b7&nbsp; ') : '<span style="font-size:10.5px;color:var(--muted);font-style:italic">No parameter values supplied yet</span>';
+      var improvement = rec.predictedImprovement ? Object.keys(rec.predictedImprovement).map(function(k) {
+        var v = rec.predictedImprovement[k];
+        return '<span style="font-size:10.5px;color:'+(v<0?'var(--green)':'var(--text2)')+'">'+k+': '+v+'</span>';
+      }).join(' &nbsp;\u00b7&nbsp; ') : '';
+      var timeline = (rec.statusHistory || []).slice().reverse().map(function(h) {
+        var d = new Date(h.changedAt);
+        return '<div style="display:flex;gap:8px;font-size:10px;color:var(--muted);padding:3px 0;border-left:2px solid rgba(255,255,255,.08);padding-left:8px;margin-left:2px">' +
+          '<span style="color:'+(STATUS_CLS[h.status]==='ok'?'#22c55e':STATUS_CLS[h.status]==='err'?'#ef4444':'#f59e0b')+';font-weight:700">'+h.status.replace('_',' ')+'</span>' +
+          '<span>'+d.toLocaleDateString()+' '+d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})+' \u00b7 '+(h.changedBy||'unknown')+'</span>' +
+          (h.notes ? '<span style="color:var(--text2)">\u2014 '+h.notes+'</span>' : '') +
+        '</div>';
+      }).join('');
+      var histId = 'gbhist_' + rec.id;
+      return '<div class="card" style="margin-bottom:12px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">' +
+          '<div><div style="font-size:13px;font-weight:700;color:#e2e8f0">'+(rec.asset?.name||'Unknown Asset')+(rec.partNumber?' \u2014 '+rec.partNumber:'')+'</div>' +
+          '<div style="font-size:10.5px;color:var(--muted)">Model: '+(rec.model?.name||'\u2014')+' '+(rec.model?.latestVersion||'')+(rec.model?.accuracyPct?' \u00b7 '+rec.model.accuracyPct.toFixed(1)+'% accuracy':'')+'</div></div>' +
+          '<span class="badge '+(STATUS_CLS[rec.status]||'info')+'">'+rec.status.replace('_',' ')+'</span>' +
+        '</div>' +
+        '<div style="margin-bottom:6px">'+params+'</div>' +
+        (improvement ? '<div style="margin-bottom:10px">'+improvement+'</div>' : '') +
+        (rec.status === 'PENDING_TRIAL' ? '<div style="display:flex;gap:8px;margin-bottom:8px">' +
+          '<button onclick="actionGoldenBatchRec(\'' + rec.id + '\',\'VALIDATED\')" style="padding:5px 12px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);border-radius:6px;color:#22c55e;font-size:11px;cursor:pointer">Confirm \u2014 Trial Validated</button>' +
+          '<button onclick="actionGoldenBatchRec(\'' + rec.id + '\',\'REJECTED\')" style="padding:5px 12px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:6px;color:#ef4444;font-size:11px;cursor:pointer">Reject</button>' +
+        '</div>' : '') +
+        (timeline ? '<div style="margin-top:8px"><button onclick="document.getElementById(\''+histId+'\').style.display = document.getElementById(\''+histId+'\').style.display===\'block\'?\'none\':\'block\'" style="background:none;border:none;color:var(--muted);font-size:10px;cursor:pointer;text-decoration:underline;padding:0">History (' + (rec.statusHistory||[]).length + ')</button>' +
+          '<div id="'+histId+'" style="display:none;margin-top:6px">'+timeline+'</div></div>' : '') +
+      '</div>';
+    }
+
+    var html = '';
+    if (pending.length) {
+      html += '<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Awaiting Review (' + pending.length + ')</div>';
+      html += pending.map(renderCard).join('');
+    }
+    if (history.length) {
+      html += '<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin:20px 0 10px">History (' + history.length + ')</div>';
+      html += history.map(renderCard).join('');
+    }
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:12px">Could not load recommendations.</div>';
+  }
+}
+
+async function actionGoldenBatchRec(id, status) {
+  var notes = status === 'REJECTED' ? prompt('Why was this rejected? (optional)') : prompt('Trial notes (optional):');
+  try {
+    var r = await fetch('/api/v1/lab/golden-batch-recommendations/'+id, {
+      method:'PATCH', credentials:'same-origin', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ status: status, trialNotes: notes || undefined }),
+    });
+    if (!r.ok) throw new Error('failed');
+    loadGoldenBatchRecs();
+  } catch(e) { alert('Could not update recommendation: ' + e.message); }
 }
 
 // Add CNC type to new project form if not present
@@ -9773,19 +9955,28 @@ async function loadQMSKPIs() {
     t('qms-kv-fpy','99.1%');
     t('qms-kv-ncrs', open.length || all.filter(function(n){return n.status!=='CLOSED';}).length);
     t('qms-kv-ncrs-s', crit.length+' critical · '+all.length+' total');
+    t('qms-kv-ai-ncrs', ncrs.autoRaisedOpenCount != null ? ncrs.autoRaisedOpenCount : all.filter(function(n){return n.autoRaised&&n.status!=='CLOSED';}).length);
     t('qms-kv-crit', crit.length);
     t('qms-kv-ppm','12');
     t('qms-kv-scars', openSc.length || (scars.data||[]).length);
   } catch(e) {}
 }
 
+var QMS_PILLAR_LABELS = {
+  QUALITY_CONTROL: 'Vision QC', PREDICTIVE_MAINTENANCE: 'Pred. Maintenance',
+  SUPPLY_CHAIN: 'Supply Chain', PROCESS_OPTIMIZATION: 'Process Opt.',
+};
 async function loadQMSNCRs() {
   try {
     var sev    = document.getElementById('qms-ncr-sev')?.value||'';
     var status = document.getElementById('qms-ncr-status')?.value||'';
+    var source = document.getElementById('qms-ncr-source')?.value||'';
+    var pillar = document.getElementById('qms-ncr-pillar')?.value||'';
     var params = new URLSearchParams();
     if (sev)    params.set('severity', sev);
     if (status) params.set('status',   status);
+    if (source) params.set('autoRaised', source);
+    if (pillar) params.set('sourcePillar', pillar);
     var r = await fetch('/api/v1/ncrs?'+params,{credentials:'same-origin'});
     if (!r.ok) return;
     var d = await r.json();
@@ -9806,7 +9997,7 @@ async function loadQMSNCRs() {
         '<td><span class="badge '+(SEV[n.severity]||'info')+'">'+n.severity+'</span></td>'+
         '<td style="color:var(--text3);font-size:11px">'+(n.line?.name||'—')+'</td>'+
         '<td><span class="badge '+(n.status==='CLOSED'?'ok':n.status==='OPEN'?'crit':'warn')+'">'+n.status+'</span></td>'+
-        '<td>'+(n.autoRaised?'<span style="font-size:9px;padding:1px 5px;background:rgba(0,194,224,.1);border-radius:3px;color:#00c2e0">AUTO</span>':'<span style="font-size:9px;color:var(--text3)">Manual</span>')+'</td>'+
+        '<td>'+(n.autoRaised?'<span style="font-size:9px;padding:1px 5px;background:rgba(0,194,224,.1);border-radius:3px;color:#00c2e0">AUTO'+(n.sourcePillar&&QMS_PILLAR_LABELS[n.sourcePillar]?' · '+QMS_PILLAR_LABELS[n.sourcePillar]:'')+'</span>':'<span style="font-size:9px;color:var(--text3)">Manual</span>')+'</td>'+
         '<td><button data-ncr-id="'+n.id+'" style="padding:3px 8px;background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.3);border-radius:5px;color:#8b5cf6;font-size:10px;cursor:pointer">8D AI</button></td>'+
       '</tr>';
     }).join('') || '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text3)">No NCRs found</td></tr>';

@@ -73,6 +73,7 @@ async function autoNcrFromVisionFail({ jobId, sessionId, confidence, defectCount
         status:           'OPEN',
         autoRaised:       true,
         autoSource:       `vision:${sessionId || 'unknown'}`,
+        sourcePillar:     'QUALITY_CONTROL',
       },
     });
 
@@ -137,6 +138,16 @@ async function autoNcrFromSensorCrit({ sensor, value, orgId }) {
     const asset     = sensor.asset || {};
     const thr       = sensor.thresholds || {};
 
+    // Which pillar actually owns this sensor — a sensor could belong to
+    // Predictive Maintenance OR Process Optimization (both use the same
+    // Sensor/SensorReading bridge), so this traces back through the
+    // linked data source's project rather than assuming one fixed pillar.
+    const linkedSource = await prisma.labDataSource.findFirst({
+      where: { linkedAssetId: sensor.assetId },
+      include: { project: { select: { pillar: true } } },
+    });
+    const sourcePillar = linkedSource?.project?.pillar || 'PREDICTIVE_MAINTENANCE';
+
     const ncr = await prisma.ncr.create({
       data: {
         number:           ncrNumber,
@@ -155,6 +166,7 @@ async function autoNcrFromSensorCrit({ sensor, value, orgId }) {
         status:           'OPEN',
         autoRaised:       true,
         autoSource:       `sensor:${sensor.id}:crit`,
+        sourcePillar,
       },
     });
 
@@ -177,6 +189,69 @@ async function autoNcrFromSensorCrit({ sensor, value, orgId }) {
     return ncr;
   } catch (e) {
     console.error('[AUTO] autoNcrFromSensorCrit failed:', e.message);
+    return null;
+  }
+}
+
+// ── AUTO SCAR FROM SUPPLIER ISSUE ─────────────────────────────
+// Closes the Supply Chain pillar's Quality loop the same way vision
+// and sensor data already do — a real reliability/quality signal
+// (late delivery, quality PPM spike) raises a real Supplier
+// Corrective Action Report, not just a number sitting in Lab data.
+async function autoScarFromSupplierIssue({ supplier, event, severity, details, orgId }) {
+  try {
+    const org = await getDefaultOrg(orgId);
+    if (!org || !supplier) return null;
+
+    // Same dedup principle as the sensor path — don't flood the same
+    // supplier with duplicate SCARs within a short window.
+    const recent = await prisma.scar.findFirst({
+      where: {
+        supplierId: supplier.id,
+        autoRaised: true,
+        autoSource: { startsWith: `supplier:${supplier.id}` },
+        status: { in: ['OPEN', 'IN_PROGRESS'] },
+        createdAt: { gte: new Date(Date.now() - 24 * 3600000) }, // 24h — supplier issues are lower-frequency than sensor readings
+      },
+    });
+    if (recent) {
+      console.log(`[AUTO] SCAR already open for supplier ${supplier.id} — skipping duplicate`);
+      return null;
+    }
+
+    const scarNumber = await nextSequence(org.id, 'scar', 'SCAR');
+    const sevNorm = (severity || 'MAJOR').toUpperCase();
+
+    const scar = await prisma.scar.create({
+      data: {
+        number:     scarNumber,
+        supplierId: supplier.id,
+        issue:      `${event}: ${details || 'No additional details provided.'}`,
+        severity:   sevNorm === 'CRITICAL' ? 'CRITICAL' : 'MAJOR',
+        status:     'OPEN',
+        dueAt:      new Date(Date.now() + 14 * 24 * 3600000), // 14-day standard SCAR response window
+        autoRaised: true,
+        autoSource: `supplier:${supplier.id}:${event}`,
+      },
+    });
+
+    await sendNotification({
+      orgId: org.id,
+      subject: `[AUTO-SCAR] ${scarNumber} — ${supplier.name} (${event})`,
+      body: `A Supplier Corrective Action Report has been automatically raised.\n\n` +
+            `SCAR Number: ${scarNumber}\n` +
+            `Supplier:    ${supplier.name}\n` +
+            `Event:       ${event}\n` +
+            `Severity:    ${scar.severity}\n` +
+            `Details:     ${details || '—'}\n` +
+            `Due:         ${scar.dueAt.toISOString().slice(0,10)}\n\n` +
+            `Log in to CorverxisONE → QMS → SCARs to action this.`,
+    });
+
+    console.log(`[AUTO] SCAR raised from supplier issue: ${scarNumber} — ${supplier.name} (${event})`);
+    return scar;
+  } catch (e) {
+    console.error('[AUTO] autoScarFromSupplierIssue failed:', e.message);
     return null;
   }
 }
@@ -397,6 +472,7 @@ async function sendNotification({ orgId, subject, body, to }) {
 module.exports = {
   autoNcrFromVisionFail,
   autoNcrFromSensorCrit,
+  autoScarFromSupplierIssue,
   autoWoFromErp,
   sendNotification,
   nextSequence,

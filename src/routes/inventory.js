@@ -52,13 +52,17 @@ function stockStatus(item) {
 // GET /api/v1/inventory — list all items with status
 router.get('/inventory', authenticate, requireRole('TECHNICIAN'), async (req, res) => {
   try {
-    const { category, status, search, limit = 100 } = req.query;
+    const { category, status, search, partNumbers, limit = 100 } = req.query;
     const where = { orgId: req.user.orgId, active: true };
     if (category) where.category = category;
     if (search)   where.OR = [
       { partNumber:  { contains: search, mode: 'insensitive' } },
       { description: { contains: search, mode: 'insensitive' } },
     ];
+    if (partNumbers) {
+      const list = partNumbers.split(',').map(s => s.trim()).filter(Boolean);
+      if (list.length) where.partNumber = { in: list };
+    }
 
     const items = await prisma.inventoryItem.findMany({
       where,

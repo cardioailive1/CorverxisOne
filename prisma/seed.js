@@ -207,6 +207,7 @@ async function main() {
       update: {},
       create: {
         id:         `vjob-${job.name.toLowerCase()}`,
+        orgId:      org.id,
         name:       job.name,
         partNumber: job.partNumber,
         revision:   job.revision,
@@ -351,7 +352,7 @@ async function seedDynamicData() {
   console.log(`✓ Sensor readings + predictions seeded`);
 
   // ── Seed active vision session ───────────────────────────────────────────────
-  const vJob = await prisma.visionJob.findFirst();
+  const vJob = await prisma.visionJob.findFirst({ where: { orgId: org.id } });
   if (vJob) {
     const vsess = await prisma.visionSession.upsert({
       where: { id: 'vsess-demo' }, update: {},
@@ -631,6 +632,16 @@ main()
       await require('./seed-change').seedChange();
     } catch (e) {
       console.error('⚠ Change Management seed error (non-fatal, deploy continues):', e.message);
+    }
+    try {
+      await require('./seed-catalog').seedCatalog();
+    } catch (e) {
+      console.error('⚠ SensorModel catalog seed error (non-fatal, deploy continues):', e.message);
+    }
+    try {
+      await require('./seed-vision-catalog').seedVisionCatalog();
+    } catch (e) {
+      console.error('⚠ CorverxisVision catalog seed error (non-fatal, deploy continues):', e.message);
     }
     try {
       await require('./seed-lab').seedLab();

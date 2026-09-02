@@ -12,6 +12,7 @@ model Org {
   name           String
   slug           String           @unique
   plan           OrgPlan          @default(STARTER)
+  activeVerticals String[]        @default([]) // which SensorModel verticals this client actually operates in — e.g. a precision manufacturer only needs "Manufacturing" and "Industrial Automation" out of all 18
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   users          User[]
@@ -47,6 +48,9 @@ model Org {
   labDatasets    LabDataset[]
   labTrainingJobs LabTrainingJob[]
   labModels      LabModel[]
+  visionJobs     VisionJob[]
+  goldenBatchRecommendations    GoldenBatchRecommendation[]
+  demandForecastRecommendations DemandForecastRecommendation[]
 
   @@map("orgs")
 }
@@ -139,6 +143,8 @@ model Asset {
   vertical    String
   location    String?
   sensors     Sensor[]
+  labDataSources LabDataSource[]
+  goldenBatchRecommendations GoldenBatchRecommendation[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -159,6 +165,8 @@ model Sensor {
   readings    SensorReading[]
   predictions Prediction[]
   alerts      Alert[]
+  activeModelId String?         // which trained LabModel is the current production model for THIS sensor — unlike Vision's single job-level target, PM deployment is per-sensor since each sensor has its own RUL/prediction
+  activeModel   LabModel?       @relation(fields: [activeModelId], references: [id])
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
@@ -220,6 +228,8 @@ enum AlertLevel {
 
 model VisionJob {
   id          String         @id @default(cuid())
+  orgId       String
+  org         Org            @relation(fields: [orgId], references: [id])
   name        String
   partNumber  String
   revision    String         @default("Rev A")
@@ -229,9 +239,13 @@ model VisionJob {
   minDefectPx Int            @default(4)
   confidence  Int            @default(90)
   sessions    VisionSession[]
+  labDataSources LabDataSource[]
+  activeModelId String?    // which trained LabModel is the current production model for this job — set when a model is deployed from CorverxisLab
+  activeModel   LabModel?  @relation(fields: [activeModelId], references: [id])
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
+  @@index([orgId])
   @@map("vision_jobs")
 }
 
@@ -364,6 +378,7 @@ model Ncr {
   rootCause         String?
   autoRaised        Boolean    @default(false)
   autoSource        String?
+  sourcePillar      String?    // which AI pilot pillar raised this — QUALITY_CONTROL, PREDICTIVE_MAINTENANCE, SUPPLY_CHAIN, PROCESS_OPTIMIZATION. Null for manually-raised NCRs.
   emailSent         Boolean    @default(false)
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
@@ -417,6 +432,8 @@ model Scar {
   dueAt       DateTime?
   closedAt    DateTime?
   ncrId       String?
+  autoRaised  Boolean   @default(false)
+  autoSource  String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -504,6 +521,7 @@ model InventoryItem {
   transactions    StockTransaction[]
   bomLines        BomLine[]
   lots            InventoryLot[]
+  demandForecastRecommendations DemandForecastRecommendation[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
@@ -1265,16 +1283,55 @@ model LabDataSource {
   project         LabProject @relation(fields: [projectId], references: [id])
   name            String   // e.g. "Line 3 IIoT Gateway", "Plex MES Export"
   type            LabDataSourceType
+  origin          LabInfraOrigin @default(NEW_BUILD)  // is this leveraging what the client already has, or built from scratch?
   status          LabDataSourceStatus @default(NOT_CONNECTED)
   recordsIngested Int      @default(0)
   lastSyncAt      DateTime?
   notes           String?  @db.Text
+  apiKeyHash      String?  // SHA-256 of the gateway agent's API key — the raw key is shown once at creation and never stored
+  apiKeyLast4     String?  // last 4 chars, safe to display so a client can confirm which key is deployed
+  catalogEntryId  String?  // if this data source started from a SensorModel catalog entry rather than a blank config
+  catalogEntry    SensorModelCatalogEntry? @relation(fields: [catalogEntryId], references: [id])
+  visionPartId    String?  // if this data source started from a CorverxisVision part catalog entry
+  visionPart      VisionPartCatalogEntry? @relation(fields: [visionPartId], references: [id])
+  linkedAssetId   String?  // the Asset real sensor readings actually get written to — the bridge that makes gateway-pushed data show up in SensorModel / the IIoT page, not just CorverxisLab's own ingestion log
+  linkedAsset     Asset?   @relation(fields: [linkedAssetId], references: [id])
+  linkedVisionJobId String? // the VisionJob real inspection results get written to — the equivalent bridge for VISION_CAMERA sources, so CorverxisVision and the dashboard see real pass/fail data
+  linkedVisionJob   VisionJob? @relation(fields: [linkedVisionJobId], references: [id])
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  ingestionEvents LabIngestionEvent[]
 
   @@index([orgId])
   @@index([projectId])
   @@map("lab_data_sources")
+}
+
+// One row per batch a gateway agent actually pushes — real ingestion
+// history, not a simulated status flip. Kept as batch summaries rather
+// than every raw reading, since an IIoT gateway can push at high
+// frequency and storing every point indefinitely isn't realistic.
+model LabIngestionEvent {
+  id           String   @id @default(cuid())
+  dataSourceId String
+  dataSource   LabDataSource @relation(fields: [dataSourceId], references: [id])
+  receivedAt   DateTime @default(now())
+  recordCount  Int
+  summary      Json?    // e.g. { vibration: {avg,min,max}, temperature: {avg,min,max} }
+  sourceIp     String?
+
+  @@index([dataSourceId])
+  @@map("lab_ingestion_events")
+}
+
+// Tracks whether a piece of infrastructure leverages what the client site
+// already has, or is being built new — the exact "mix of existing
+// infrastructure and starting from scratch" reality most pilots face.
+enum LabInfraOrigin {
+  EXISTING    // client already has this — we're integrating/cleaning it
+  NEW_BUILD   // nothing usable existed — built from scratch
+  HYBRID      // partially reused, partially rebuilt
 }
 
 enum LabDataSourceType {
@@ -1302,6 +1359,7 @@ model LabPipeline {
   project          LabProject @relation(fields: [projectId], references: [id])
   name             String
   stage            LabPipelineStage
+  origin           LabInfraOrigin @default(NEW_BUILD)
   status           LabPipelineStatus @default(DRAFT)
   recordsProcessed Int      @default(0)
   lastRunAt        DateTime?
@@ -1404,6 +1462,10 @@ model LabModel {
   updatedAt       DateTime @updatedAt
 
   versions        LabModelVersion[]
+  activeForVisionJobs VisionJob[]
+  activeForSensors   Sensor[]
+  goldenBatchRecommendations    GoldenBatchRecommendation[]
+  demandForecastRecommendations DemandForecastRecommendation[]
 
   @@index([orgId])
   @@index([projectId])
@@ -1427,4 +1489,126 @@ model LabModelVersion {
 
   @@index([modelId])
   @@map("lab_model_versions")
+}
+
+// ══════════════════════════════════════════════════════════════
+//  SensorModel Catalog — the actual link between the standalone
+//  SensorModel product (72 pre-built sensor definitions across 18
+//  industry verticals) and CorverxisLab. This is a GLOBAL, shared
+//  catalog (not org-scoped) — a product reference library every
+//  org's Lab can draw from, not per-client data. An org selects
+//  which verticals actually apply to it via Org.activeVerticals,
+//  and a LabDataSource can optionally start from a specific catalog
+//  entry rather than being configured from a blank slate.
+// ══════════════════════════════════════════════════════════════
+
+model SensorModelCatalogEntry {
+  id             String   @id @default(cuid())
+  vertical       String   // one of the 18 SensorModel verticals, e.g. "Manufacturing"
+  sensorKey      String   @unique // stable key matching the standalone SensorModel product, e.g. "mfg_vib"
+  name           String
+  unit           String
+  baselineValue  Float
+  warnThreshold  Float
+  critThreshold  Float
+  ruLHoursAtCrit Int      // typical remaining-useful-life hours once at critical, per SensorModel's reference data
+  colorHex       String
+  freqCategory   String   // bearing / thermal / current / pressure / acoustic / etc.
+  description    String
+
+  dataSources    LabDataSource[]
+
+  @@index([vertical])
+  @@map("sensor_model_catalog_entries")
+}
+
+// ══════════════════════════════════════════════════════════════
+//  CorverxisVision Part Catalog — the equivalent link for the
+//  standalone CorverxisVision product. Deliberately thinner than
+//  SensorModelCatalogEntry: Vision's own built-in data is 6 part
+//  types + 5 generic defect type names for its canvas simulator,
+//  not real pre-trained models with accuracy/threshold stats the
+//  way SensorModel's 71 sensor definitions are. This reflects that
+//  honestly rather than padding it out to look equivalent.
+// ══════════════════════════════════════════════════════════════
+
+model VisionPartCatalogEntry {
+  id                  String   @id @default(cuid())
+  partKey             String   @unique // matches CorverxisVision's own key, e.g. "caliper"
+  partName            String
+  shape               String   // rendering shape in the CorverxisVision simulator
+  colorHex            String
+  applicableDefectTypes String[] // which of Vision's 5 defect types apply to this part
+
+  dataSources         LabDataSource[]
+
+  @@map("vision_part_catalog_entries")
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Deployment targets for the two pillars that don't naturally map
+//  to "a sensor" or "a vision job": Process Optimization produces a
+//  parameter recommendation, not a continuous reading; Supply Chain
+//  produces a reorder/safety-stock recommendation, not an inspection
+//  result. Both follow the platform-wide rule established in the
+//  pilot studies themselves — a recommendation to review and trial,
+//  never an automatic change to a live production or inventory
+//  value. Neither ever writes to Asset or InventoryItem's live
+//  operational fields directly.
+// ══════════════════════════════════════════════════════════════
+
+model GoldenBatchRecommendation {
+  id                  String   @id @default(cuid())
+  orgId               String
+  org                 Org      @relation(fields: [orgId], references: [id])
+  assetId             String
+  asset               Asset    @relation(fields: [assetId], references: [id])
+  modelId             String
+  model               LabModel @relation(fields: [modelId], references: [id])
+  partNumber          String?
+  recommendedParams   Json?    // e.g. { spindleSpeedRpm: 2400, feedRateMmRev: 0.15, coolantPsi: 850 } — null until the model/engineer has actually supplied a candidate
+  predictedImprovement Json?   // e.g. { scrapRateDelta: -0.6, cycleTimeDeltaPct: -3.2 } — directional, from historical data analysis, not a guarantee
+  status              GoldenBatchStatus @default(PENDING_TRIAL)
+  trialNotes          String?  @db.Text
+  statusHistory       Json[]   @default([]) // append-only log of every status change: [{ status, notes, changedAt, changedBy }] — trialNotes/status above always reflect the latest entry, this is the full trail
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([orgId])
+  @@index([assetId])
+  @@map("golden_batch_recommendations")
+}
+
+enum GoldenBatchStatus {
+  PENDING_TRIAL   // surfaced, not yet run on the floor
+  VALIDATED       // floor trial confirmed the improvement
+  REJECTED        // floor trial did not confirm it, or engineer overrode
+}
+
+model DemandForecastRecommendation {
+  id                      String   @id @default(cuid())
+  orgId                   String
+  org                     Org      @relation(fields: [orgId], references: [id])
+  inventoryItemId         String
+  inventoryItem           InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  modelId                 String
+  model                   LabModel @relation(fields: [modelId], references: [id])
+  recommendedReorderPoint Float?
+  recommendedSafetyStock  Float?
+  forecastBasis           Json?    // e.g. { avgDailyDemand: 12.4, demandStdDev: 3.1, leadTimeDaysUsed: 21 } — the reasoning, not just the number
+  status                  DemandForecastStatus @default(PENDING_REVIEW)
+  buyerNotes              String?  @db.Text
+  statusHistory           Json[]   @default([]) // append-only log of every status change: [{ status, notes, changedAt, changedBy }]
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([orgId])
+  @@index([inventoryItemId])
+  @@map("demand_forecast_recommendations")
+}
+
+enum DemandForecastStatus {
+  PENDING_REVIEW  // surfaced, buyer hasn't acted on it
+  ACCEPTED        // buyer confirmed — reflect this in the item's real reorderPoint/safetyStock manually, this record does not do it for them
+  OVERRIDDEN      // buyer reviewed and chose different values, noted why
 }

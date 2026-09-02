@@ -47,6 +47,8 @@ const apiRouter      = require('./routes/api');
 const hrimRouter     = require('./routes/hrim');
 const changeRouter   = require('./routes/change');
 const labRouter      = require('./routes/lab');
+const { router: onboardingRouter, bootstrapOrg } = require('./routes/onboarding');
+const catalogRouter  = require('./routes/catalog');
 
 const app    = express();
 const server = http.createServer(app);
@@ -94,6 +96,8 @@ app.use('/api/v1', apiRouter);
 app.use('/api/v1', hrimRouter);
 app.use('/api/v1', changeRouter);
 app.use('/api/v1', labRouter);
+app.use('/api/v1', onboardingRouter);
+app.use('/api/v1', catalogRouter);
 
 // ── Public routes ─────────────────────────────────────────────────────────────
 app.get('/api/health', async (req, res) => {
@@ -132,6 +136,10 @@ app.post('/api/register', async (req, res) => {
       if (existingOrg) return res.status(409).json({ error: 'Organisation slug already taken' });
       const org = await prisma.org.create({ data: { name: orgName, slug: orgSlug } });
       resolvedOrgId = org.id;
+      // A brand-new org otherwise starts completely empty — no departments,
+      // no change initiatives/risks, no lab projects — leaving a new client's
+      // first admin staring at a blank platform. Bootstrap it immediately.
+      bootstrapOrg(org.id, { verticals: req.body.verticals }).catch((e) => console.error('⚠ Org bootstrap failed (non-fatal):', e.message));
     }
 
     const user = await prisma.user.create({
@@ -165,6 +173,65 @@ app.post('/api/register', async (req, res) => {
         ? 'Organisation and Super Admin created. Sign in with your OAuth provider.'
         : 'Registration submitted. Awaiting admin approval.',
       userId: user.id,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Internal client provisioning (Corverxis staff only) ────────────────────
+// Deliberately separate from /api/register: that endpoint lets ANY visitor
+// create their own org via self-service self-registration. This one lets
+// Corverxis staff create an org and its first admin ON BEHALF OF a client
+// — a genuinely different trust boundary, so it's gated by a shared secret
+// rather than any user's session/role. There's no "platform admin" user
+// role modeled in this system yet; a shared secret known only to internal
+// staff is the honest, pragmatic gate until that's built properly.
+app.post('/api/internal/provision-client', async (req, res) => {
+  try {
+    const providedSecret = req.headers['x-platform-admin-secret'];
+    if (!process.env.PLATFORM_ADMIN_SECRET) {
+      return res.status(503).json({ error: 'Internal provisioning is not configured on this deployment (PLATFORM_ADMIN_SECRET not set).' });
+    }
+    if (!providedSecret || providedSecret !== process.env.PLATFORM_ADMIN_SECRET) {
+      return res.status(403).json({ error: 'Invalid or missing platform admin secret.' });
+    }
+
+    const { orgName, orgSlug, adminName, adminEmail, verticals } = req.body;
+    if (!orgName || !orgSlug || !adminName || !adminEmail) {
+      return res.status(400).json({ error: 'orgName, orgSlug, adminName, and adminEmail are all required.' });
+    }
+
+    const existingOrg = await prisma.org.findUnique({ where: { slug: orgSlug } });
+    if (existingOrg) return res.status(409).json({ error: 'Organisation slug already taken.' });
+
+    const existingUser = await prisma.user.findUnique({ where: { email: adminEmail.toLowerCase() } });
+    if (existingUser) return res.status(409).json({ error: 'That email is already registered to another account.' });
+
+    const org = await prisma.org.create({ data: { name: orgName, slug: orgSlug } });
+
+    const user = await prisma.user.create({
+      data: {
+        name: adminName, email: adminEmail.toLowerCase(), role: 'SUPER_ADMIN',
+        orgId: org.id, approved: true, approvedAt: new Date(), registeredAt: new Date(),
+      },
+    });
+
+    const bootstrapResults = await bootstrapOrg(org.id, { verticals: Array.isArray(verticals) ? verticals : undefined });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: user.id, orgId: org.id, action: 'org.provisioned_by_staff', resource: 'org', resourceId: org.id,
+        outcome: 'success', metadata: { orgName, orgSlug, adminEmail, provisionedVia: 'internal-tool' },
+      },
+    }).catch(() => {});
+
+    res.status(201).json({
+      success: true,
+      org: { id: org.id, name: org.name, slug: org.slug },
+      admin: { id: user.id, name: user.name, email: user.email },
+      bootstrap: bootstrapResults,
+      message: `${orgName} provisioned. ${adminName} can sign in immediately via OAuth using ${adminEmail} — no separate password to set.`,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -226,6 +293,15 @@ app.get('/lab', requireSession, (req, res) => {
   const f = path.join(PUBLIC, 'corverxis-lab.html');
   if (fs.existsSync(f)) { res.set('Cache-Control', 'no-store'); return res.sendFile(f); }
   res.status(404).send('corverxis-lab.html not found in public/');
+});
+
+// Deliberately no requireSession — this has to work before any org or
+// user exists yet. Its own security is the PLATFORM_ADMIN_SECRET check
+// on the API endpoint it calls, not the session system.
+app.get('/internal/provision', (req, res) => {
+  const f = path.join(PUBLIC, 'admin-provision.html');
+  if (fs.existsSync(f)) { res.set('Cache-Control', 'no-store'); return res.sendFile(f); }
+  res.status(404).send('admin-provision.html not found in public/');
 });
 
 // ── Protected API routes ──────────────────────────────────────────────────────

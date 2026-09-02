@@ -92,6 +92,9 @@ tr:last-child td{border-bottom:none}
     <div class="nav-section-label">All Projects</div>
     <div class="nav-item" data-tab="allprojects" onclick="showTab('allprojects')"><span class="nav-icon">⊡</span>Every Pilot's Lab</div>
 
+    <div class="nav-section-label">Org Settings</div>
+    <div class="nav-item" data-tab="orgsettings" onclick="showTab('orgsettings')"><span class="nav-icon">⚙</span>Active Verticals</div>
+
     <div class="sidebar-footer">
       <div id="lab-live-badge" style="color:#f59e0b">CONNECTING…</div>
       <div style="margin-top:4px">CorverxisLab v1.0 · Corverxis Technologies</div>
@@ -125,6 +128,18 @@ var PHASE_LABELS = {
 var SOURCE_TYPE_LABELS = { ERP:'ERP', MES:'MES', IIOT_SENSOR:'IIoT Sensor', SCADA_HISTORIAN:'SCADA/Historian', VISION_CAMERA:'Vision Camera', FILE_UPLOAD:'File Upload', API_FEED:'API Feed' };
 var STAGE_LABELS = { INGESTION:'Ingestion', CLEANING:'Cleaning', TRANSFORMATION:'Transformation', FEATURE_ENGINEERING:'Feature Engineering', LABELING:'Labeling' };
 var MODELTYPE_LABELS = { CLASSICAL_ML:'Classical ML', TIME_SERIES:'Time-Series', VISION:'Vision', LLM:'LLM' };
+var ORIGIN_LABELS = { EXISTING:'Existing — Reused', NEW_BUILD:'New Build', HYBRID:'Hybrid' };
+var ORIGIN_BADGE_CLS = { EXISTING:'info', NEW_BUILD:'warn', HYBRID:'muted' };
+// The real 18 verticals from the standalone SensorModel product's catalog —
+// used as a fallback list in the Add Data Source picker so all verticals
+// are browsable even if the org hasn't set any as "active" yet.
+var ALL_SENSORMODEL_VERTICALS = [
+  'Manufacturing', 'Industrial Automation', 'Healthcare', 'Aerospace', 'EV Battery',
+  'Power Systems', 'Mining', 'Renewable Energy', 'LVDT — Linear Displacement',
+  'Laser Micrometers', 'Proximity Sensors', 'Force & Torque Sensors',
+  'Vision & Optical Sensors', 'Hall Effect Sensors', 'Pressure Sensor Housing',
+  'Temperature Sensor Components', 'Vibration Sensors', 'Current & Power Sensors',
+];
 
 var LAB_LIVE = false;
 var PROJECTS = [];
@@ -197,7 +212,7 @@ window.showTab = function(tab) {
   var renderers = {
     overview: renderOverview, onboarding: renderOnboarding, infra: renderInfra,
     datasets: renderDatasets, training: renderTraining, models: renderModels,
-    allprojects: renderAllProjects,
+    allprojects: renderAllProjects, orgsettings: renderOrgSettings,
   };
   (renderers[tab] || renderOverview)();
 };
@@ -295,22 +310,49 @@ function renderOnboarding() {
   var el = _mainEl();
   if (!CURRENT_PROJECT) { el.innerHTML = _noProjectState(); return; }
   var p = CURRENT_PROJECT;
+  var existingCt = p.dataSources.filter(function(d){return d.origin==='EXISTING';}).length;
+  var newCt = p.dataSources.filter(function(d){return d.origin==='NEW_BUILD';}).length;
+  var hybridCt = p.dataSources.filter(function(d){return d.origin==='HYBRID';}).length;
+  var total = p.dataSources.length || 1;
   el.innerHTML =
     '<div class="pt">Site Onboarding &amp; Data Integration</div>' +
-    '<div class="ps">Connect and clean data sources at '+(p.clientSiteName||'the client site')+' before anything else can start.</div>' +
+    '<div class="ps">Connect and clean data sources at '+(p.clientSiteName||'the client site')+' before anything else can start. In practice this is almost always a mix — some of what\'s already at the plant, some built new.</div>' +
+    '<div class="card" style="margin-bottom:14px">' +
+      '<div class="ct" style="margin-bottom:8px">The Mix — Existing vs. New Build</div>' +
+      '<div class="progress-bar" style="height:14px;border-radius:7px;overflow:hidden;display:flex">' +
+        (existingCt ? '<div style="width:'+(existingCt/total*100)+'%;background:#00c2e0" title="Existing"></div>' : '') +
+        (hybridCt ? '<div style="width:'+(hybridCt/total*100)+'%;background:#6b7280" title="Hybrid"></div>' : '') +
+        (newCt ? '<div style="width:'+(newCt/total*100)+'%;background:#f59e0b" title="New Build"></div>' : '') +
+      '</div>' +
+      '<div style="display:flex;gap:14px;margin-top:8px;font-size:10.5px;color:var(--text2)">' +
+        '<span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#00c2e0;margin-right:4px"></span>Existing — Reused ('+existingCt+')</span>' +
+        '<span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#6b7280;margin-right:4px"></span>Hybrid ('+hybridCt+')</span>' +
+        '<span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#f59e0b;margin-right:4px"></span>New Build ('+newCt+')</span>' +
+      '</div>' +
+    '</div>' +
     '<div style="display:flex;justify-content:flex-end;margin-bottom:12px">' +
       '<button class="btn btn-primary" onclick="openAddSource()">+ Add Data Source</button>' +
     '</div>' +
     '<div class="card" style="padding:0;overflow:hidden">' +
-      '<table><thead><tr><th>Source</th><th>Type</th><th>Status</th><th>Records Ingested</th><th>Last Sync</th><th></th></tr></thead><tbody>' +
+      '<table><thead><tr><th>Source</th><th>Type</th><th>Origin</th><th>Status</th><th>Records Ingested</th><th>Last Sync</th><th>Gateway Key</th><th></th></tr></thead><tbody>' +
       (p.dataSources.length ? p.dataSources.map(function(d){
         var statusCls = d.status==='CONNECTED'?'ok':d.status==='CONNECTING'?'warn':d.status==='ERROR'?'err':'muted';
+        var isGatewayType = ['IIOT_SENSOR','SCADA_HISTORIAN','VISION_CAMERA'].indexOf(d.type) !== -1;
+        var actions;
+        if (isGatewayType) {
+          actions = '<button class="btn btn-secondary" style="padding:4px 8px;font-size:10px" onclick="viewIngestionEvents(\''+d.id+'\',\''+d.name.replace(/'/g,"&#39;")+'\')">Events</button>' +
+            (d.apiKeyLast4 ? ' <button class="btn btn-secondary" style="padding:4px 8px;font-size:10px" onclick="regenerateKey(\''+d.id+'\',\''+d.name.replace(/'/g,"&#39;")+'\')">Regen Key</button>' : '');
+        } else {
+          actions = d.status!=='CONNECTED' ? '<button class="btn btn-secondary" style="padding:4px 10px;font-size:10px" onclick="markConnected(\''+d.id+'\')">Mark Connected</button>' : '';
+        }
         return '<tr><td style="color:var(--text)">'+d.name+'</td><td>'+SOURCE_TYPE_LABELS[d.type]+'</td>' +
+          '<td><span class="badge '+ORIGIN_BADGE_CLS[d.origin]+'">'+ORIGIN_LABELS[d.origin]+'</span></td>' +
           '<td><span class="badge '+statusCls+'">'+d.status.replace('_',' ')+'</span></td>' +
           '<td>'+d.recordsIngested.toLocaleString()+'</td>' +
           '<td>'+(d.lastSyncAt?new Date(d.lastSyncAt).toLocaleDateString():'—')+'</td>' +
-          '<td>'+(d.status!=='CONNECTED'?'<button class="btn btn-secondary" style="padding:4px 10px;font-size:10px" onclick="markConnected(\''+d.id+'\')">Mark Connected</button>':'') +'</td></tr>';
-      }).join('') : '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">No data sources yet. Click "+ Add Data Source" to start onboarding this site.</td></tr>') +
+          '<td style="font-family:monospace;font-size:10px;color:var(--muted)">'+(d.apiKeyLast4?'…'+d.apiKeyLast4:'—')+'</td>' +
+          '<td>'+actions+'</td></tr>';
+      }).join('') : '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--muted)">No data sources yet. Click "+ Add Data Source" to start onboarding this site.</td></tr>') +
       '</tbody></table>' +
     '</div>';
 }
@@ -322,17 +364,197 @@ window.markConnected = async function(id) {
     _toast('✓ Data source connected');
   } catch(e) { alert('Could not update source: '+e.message); }
 };
-window.openAddSource = function() {
-  openModal('Add Data Source',
-    _field('Name','name','text') +
+window.openAddSource = async function() {
+  var activeVerticals = [];
+  try {
+    var r = await fetch('/api/v1/org/verticals', { credentials:'same-origin' });
+    if (r.ok) activeVerticals = (await r.json()).data.activeVerticals || [];
+  } catch(e) {}
+
+  var verticalOpts = [{value:'',label:'— configure manually, no catalog —'}];
+  if (activeVerticals.length) {
+    verticalOpts.push({value:'__divider_active__', label:'── This org\'s verticals ──', disabled:true});
+    activeVerticals.forEach(function(v){ verticalOpts.push({value:v, label:v}); });
+  }
+  verticalOpts.push({value:'__divider_all__', label:'── Browse all 18 SensorModel verticals ──', disabled:true});
+  ALL_SENSORMODEL_VERTICALS.forEach(function(v){
+    if (activeVerticals.indexOf(v) === -1) verticalOpts.push({value:v, label:v});
+  });
+
+  var bodyHtml =
+    _field('Name','name','text', null, null, true, 'Auto-filled if you pick from a catalog below') +
     _field('Type','type','select',['ERP','MES','IIOT_SENSOR','SCADA_HISTORIAN','VISION_CAMERA','FILE_UPLOAD','API_FEED'], SOURCE_TYPE_LABELS) +
-    _field('Notes','notes','textarea', null, false),
+    '<div id="catalog-picker-wrap" style="display:none">' +
+      '<div class="field"><label>Start from SensorModel Catalog</label>' +
+        '<select id="catalog-vertical-select">' + verticalOpts.map(function(o){
+          return '<option value="'+o.value+'"'+(o.disabled?' disabled':'')+'>'+o.label+'</option>';
+        }).join('') + '</select>' +
+      '</div>' +
+      '<div class="field" id="catalog-sensor-wrap" style="display:none"><label>Sensor Definition</label>' +
+        '<select id="catalog-sensor-select"></select>' +
+      '</div>' +
+      '<input type="hidden" name="catalogEntryId" id="catalog-entry-id-input">' +
+    '</div>' +
+    '<div id="vision-picker-wrap" style="display:none">' +
+      '<div class="field"><label>Start from CorverxisVision Part Catalog</label>' +
+        '<select id="vision-part-select"><option value="">— configure manually, no catalog —</option></select>' +
+      '</div>' +
+      '<input type="hidden" name="visionPartId" id="vision-part-id-input">' +
+    '</div>' +
+    _field('Origin','origin','select',['EXISTING','NEW_BUILD','HYBRID'], ORIGIN_LABELS) +
+    _field('Notes','notes','textarea', null, null, false, 'Auto-filled from the catalog entry if selected');
+
+  openModal('Add Data Source', bodyHtml,
     async function(payload){
-      await _post('/api/v1/lab/projects/'+CURRENT_PROJECT.id+'/data-sources', payload);
+      var result = await _post('/api/v1/lab/projects/'+CURRENT_PROJECT.id+'/data-sources', payload);
       await loadCurrentProject();
       renderOnboarding();
+      // The API key is only ever returned this one time — show it in a
+      // dedicated reveal modal with a copy button, not buried in a toast.
+      if (result.apiKey) {
+        setTimeout(function(){ showApiKeyReveal(result.data.name, result.apiKey, result.data.id); }, 150);
+      }
+    },
+    { onMount: function(form){
+        var typeSelect = form.querySelector('select[name="type"]');
+        var catalogWrap = document.getElementById('catalog-picker-wrap');
+        var verticalSelect = document.getElementById('catalog-vertical-select');
+        var sensorWrap = document.getElementById('catalog-sensor-wrap');
+        var sensorSelect = document.getElementById('catalog-sensor-select');
+        var entryIdInput = document.getElementById('catalog-entry-id-input');
+        var visionWrap = document.getElementById('vision-picker-wrap');
+        var visionSelect = document.getElementById('vision-part-select');
+        var visionIdInput = document.getElementById('vision-part-id-input');
+        var nameInput = form.querySelector('input[name="name"]');
+        var notesInput = form.querySelector('textarea[name="notes"]');
+        var visionPartsLoaded = false;
+
+        function toggleCatalogVisibility(){
+          catalogWrap.style.display = (typeSelect.value === 'IIOT_SENSOR') ? 'block' : 'none';
+          visionWrap.style.display = (typeSelect.value === 'VISION_CAMERA') ? 'block' : 'none';
+          if (typeSelect.value === 'VISION_CAMERA' && !visionPartsLoaded) loadVisionParts();
+        }
+        typeSelect.addEventListener('change', toggleCatalogVisibility);
+        toggleCatalogVisibility();
+
+        async function loadVisionParts(){
+          visionPartsLoaded = true;
+          try {
+            var r = await fetch('/api/v1/catalog/vision-parts', { credentials:'same-origin' });
+            var parts = r.ok ? (await r.json()).data : [];
+            parts.forEach(function(p){
+              var opt = document.createElement('option');
+              opt.value = p.id;
+              opt.textContent = p.partName + ' — defects: ' + p.applicableDefectTypes.join(', ');
+              visionSelect.appendChild(opt);
+            });
+          } catch(e) {}
+        }
+        visionSelect.addEventListener('change', function(){
+          visionIdInput.value = visionSelect.value;
+          var opt = visionSelect.options[visionSelect.selectedIndex];
+          if (opt && visionSelect.value) nameInput.value = 'Vision — ' + opt.textContent.split(' — defects:')[0];
+        });
+
+        verticalSelect.addEventListener('change', async function(){
+          var v = verticalSelect.value;
+          if (!v || v.indexOf('__divider') === 0) { sensorWrap.style.display = 'none'; entryIdInput.value = ''; return; }
+          try {
+            var r = await fetch('/api/v1/catalog/sensor-models?vertical=' + encodeURIComponent(v), { credentials:'same-origin' });
+            var entries = r.ok ? (await r.json()).data : [];
+            sensorSelect.innerHTML = entries.map(function(e){
+              return '<option value="'+e.id+'">'+e.name+' ('+e.unit+', warn '+e.warnThreshold+', crit '+e.critThreshold+')</option>';
+            }).join('');
+            sensorWrap.style.display = entries.length ? 'block' : 'none';
+            if (entries.length) {
+              entryIdInput.value = entries[0].id;
+              nameInput.value = v + ' — ' + entries[0].name;
+            }
+          } catch(e) { sensorWrap.style.display = 'none'; }
+        });
+        sensorSelect.addEventListener('change', function(){
+          entryIdInput.value = sensorSelect.value;
+          var opt = sensorSelect.options[sensorSelect.selectedIndex];
+          if (opt) nameInput.value = verticalSelect.value + ' — ' + opt.textContent.split(' (')[0];
+        });
+      }
     }
   );
+};
+
+function showApiKeyReveal(sourceName, apiKey, dataSourceId) {
+  var existing = document.getElementById('modal-overlay');
+  if (existing) existing.remove();
+  var overlay = document.createElement('div');
+  overlay.id = 'modal-overlay';
+  overlay.innerHTML =
+    '<div class="modal" style="max-width:520px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">' +
+        '<div style="font-size:14px;font-weight:700;color:var(--text)">Gateway Agent API Key</div>' +
+        '<button onclick="document.getElementById(\'modal-overlay\').remove()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">×</button>' +
+      '</div>' +
+      '<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:11.5px;color:#f59e0b">' +
+        '⚠ This key is shown once. Copy it now — CorverxisLab cannot display it again. If it\'s lost, use \u201cRegenerate Key\u201d on this data source (which invalidates this one).' +
+      '</div>' +
+      '<div style="font-size:11px;color:var(--muted);margin-bottom:6px">For: <b style="color:var(--text)">'+sourceName+'</b></div>' +
+      '<div style="display:flex;gap:8px;margin-bottom:16px">' +
+        '<input id="reveal-key-input" readonly value="'+apiKey+'" style="flex:1;padding:10px;background:#112645;border:1px solid var(--border);border-radius:6px;color:#22c55e;font-family:monospace;font-size:12px">' +
+        '<button class="btn btn-secondary" onclick="copyRevealKey()">Copy</button>' +
+      '</div>' +
+      '<div style="font-size:11px;color:var(--muted);margin-bottom:10px">Set this as <code>CORVERXIS_API_KEY</code> and the data source ID below as <code>CORVERXIS_DATA_SOURCE_ID</code> in the gateway agent\'s <code>.env</code> file:</div>' +
+      '<div style="background:#112645;border-radius:6px;padding:10px;font-family:monospace;font-size:10.5px;color:var(--text2);margin-bottom:16px">' +
+        'CORVERXIS_DATA_SOURCE_ID='+dataSourceId+'<br>CORVERXIS_API_KEY='+apiKey +
+      '</div>' +
+      '<button class="btn btn-primary" style="width:100%" onclick="document.getElementById(\'modal-overlay\').remove()">Done — I\'ve saved this key</button>' +
+    '</div>';
+  document.body.appendChild(overlay);
+}
+window.copyRevealKey = function() {
+  var input = document.getElementById('reveal-key-input');
+  input.select();
+  document.execCommand && document.execCommand('copy');
+  if (navigator.clipboard) navigator.clipboard.writeText(input.value).catch(function(){});
+  _toast('✓ Copied to clipboard');
+};
+
+window.regenerateKey = async function(id, name) {
+  if (!confirm('Regenerate the API key for "'+name+'"? The old key will stop working immediately — any deployed gateway agent using it will need to be updated.')) return;
+  try {
+    var result = await _post('/api/v1/lab/data-sources/'+id+'/regenerate-key', {});
+    await loadCurrentProject();
+    renderOnboarding();
+    showApiKeyReveal(name, result.apiKey, id);
+  } catch(e) { alert('Could not regenerate key: '+e.message); }
+};
+
+window.viewIngestionEvents = async function(id, name) {
+  var events = [];
+  try {
+    var r = await fetch('/api/v1/lab/data-sources/'+id+'/ingestion-events', { credentials:'same-origin' });
+    if (r.ok) events = (await r.json()).data || [];
+  } catch(e) {}
+  var existing = document.getElementById('modal-overlay');
+  if (existing) existing.remove();
+  var overlay = document.createElement('div');
+  overlay.id = 'modal-overlay';
+  overlay.innerHTML =
+    '<div class="modal" style="max-width:560px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">' +
+        '<div style="font-size:14px;font-weight:700;color:var(--text)">Ingestion History — '+name+'</div>' +
+        '<button onclick="document.getElementById(\'modal-overlay\').remove()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">×</button>' +
+      '</div>' +
+      (events.length ? events.map(function(e){
+        var summaryTxt = e.summary ? Object.keys(e.summary).map(function(k){
+          var s = e.summary[k]; return k+': avg '+s.avg+' (min '+s.min+', max '+s.max+')';
+        }).join(' · ') : '';
+        return '<div style="border-bottom:1px solid var(--border);padding:8px 0;font-size:11px">' +
+          '<div style="display:flex;justify-content:space-between;color:var(--text2)"><span>'+new Date(e.receivedAt).toLocaleString()+'</span><span>'+e.recordCount+' records</span></div>' +
+          (summaryTxt ? '<div style="color:var(--muted);margin-top:2px">'+summaryTxt+'</div>' : '') +
+        '</div>';
+      }).join('') : '<div style="color:var(--muted);font-size:12px;padding:20px;text-align:center">No ingestion events yet — nothing has pushed data to this source. Deploy the gateway agent and point it at this data source\'s ID and API key.</div>') +
+    '</div>';
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', function(e){ if (e.target===overlay) overlay.remove(); });
 };
 
 // ── Data Infrastructure (pipelines) ─────────────────────────
@@ -347,15 +569,16 @@ function renderInfra() {
       '<button class="btn btn-primary" onclick="openAddPipeline()">+ New Pipeline</button>' +
     '</div>' +
     '<div class="card" style="padding:0;overflow:hidden">' +
-      '<table><thead><tr><th>Pipeline</th><th>Stage</th><th>Status</th><th>Records Processed</th><th>Last Run</th><th></th></tr></thead><tbody>' +
+      '<table><thead><tr><th>Pipeline</th><th>Stage</th><th>Origin</th><th>Status</th><th>Records Processed</th><th>Last Run</th><th></th></tr></thead><tbody>' +
       (p.pipelines.length ? p.pipelines.map(function(pl){
         var statusCls = pl.status==='ACTIVE'?'ok':pl.status==='DRAFT'?'muted':pl.status==='PAUSED'?'warn':'err';
         return '<tr><td style="color:var(--text)">'+pl.name+'</td><td>'+STAGE_LABELS[pl.stage]+'</td>' +
+          '<td><span class="badge '+ORIGIN_BADGE_CLS[pl.origin]+'">'+ORIGIN_LABELS[pl.origin]+'</span></td>' +
           '<td><span class="badge '+statusCls+'">'+pl.status+'</span></td>' +
           '<td>'+pl.recordsProcessed.toLocaleString()+'</td>' +
           '<td>'+(pl.lastRunAt?new Date(pl.lastRunAt).toLocaleDateString():'—')+'</td>' +
           '<td>'+(pl.status!=='ACTIVE'?'<button class="btn btn-secondary" style="padding:4px 10px;font-size:10px" onclick="runPipeline(\''+pl.id+'\')">Run</button>':'') +'</td></tr>';
-      }).join('') : '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">No pipelines yet. Add one to start processing onboarded data.</td></tr>') +
+      }).join('') : '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">No pipelines yet. Add one to start processing onboarded data.</td></tr>') +
       '</tbody></table>' +
     '</div>';
 }
@@ -370,7 +593,8 @@ window.runPipeline = async function(id) {
 window.openAddPipeline = function() {
   openModal('New Pipeline',
     _field('Name','name','text') +
-    _field('Stage','stage','select',['INGESTION','CLEANING','TRANSFORMATION','FEATURE_ENGINEERING','LABELING'], STAGE_LABELS),
+    _field('Stage','stage','select',['INGESTION','CLEANING','TRANSFORMATION','FEATURE_ENGINEERING','LABELING'], STAGE_LABELS) +
+    _field('Origin','origin','select',['EXISTING','NEW_BUILD','HYBRID'], ORIGIN_LABELS),
     async function(payload){
       await _post('/api/v1/lab/projects/'+CURRENT_PROJECT.id+'/pipelines', payload);
       await loadCurrentProject();
@@ -489,10 +713,11 @@ function renderModels() {
           '<div><div class="ct" style="margin-bottom:2px">'+m.name+'</div>' +
           '<div style="font-size:10.5px;color:var(--muted)">'+MODELTYPE_LABELS[m.type]+' · '+m.latestVersion+(m.accuracyPct?' · '+m.accuracyPct+'% accuracy':'')+'</div></div>' +
           '<div style="display:flex;gap:6px;align-items:center">' +
-            (m.deployedToPilot ? '<span class="badge ok">✓ Deployed to Pilot</span>' : '') +
+            (m.deployedToPilot ? '<span class="badge ok">✓ Deployed — ' + (m.deployedToCount || 0) + ' ' + (m.deployedToLabel || '') + '</span>' : '') +
             '<span class="badge '+statusCls+'">'+m.status+'</span>' +
           '</div>' +
         '</div>' +
+        (m.deployedToPilot && !m.deployedToCount ? '<div style="font-size:10px;color:#f59e0b;margin-top:6px">⚠ Marked deployed, but not linked to any live '+(m.type==='VISION'?'vision job':'sensor')+' — check that this project has a connected data source.</div>' : '') +
         '<div style="display:flex;gap:8px;margin-top:10px">' +
           (m.status!=='PRODUCTION' ? '<button class="btn btn-secondary" style="padding:5px 12px;font-size:10.5px" onclick="promoteModel(\''+m.id+'\')">Promote to Production</button>' : '') +
           (!m.deployedToPilot ? '<button class="btn btn-secondary" style="padding:5px 12px;font-size:10.5px" onclick="deployModel(\''+m.id+'\')">Deploy to Pilot</button>' : '') +
@@ -505,9 +730,79 @@ window.promoteModel = async function(id) {
   catch(e) { alert('Could not promote model: '+e.message); }
 };
 window.deployModel = async function(id) {
+  var pillar = CURRENT_PROJECT ? CURRENT_PROJECT.pillar : null;
+  if (pillar === 'PROCESS_OPTIMIZATION') { openGoldenBatchDeployModal(id); return; }
+  if (pillar === 'SUPPLY_CHAIN') { openDemandForecastDeployModal(id); return; }
   try { await _patch('/api/v1/lab/models/'+id, { deployedToPilot:true }); await loadCurrentProject(); renderModels(); _toast('✓ Deployed to pilot'); }
   catch(e) { alert('Could not deploy model: '+e.message); }
 };
+
+// Process Optimization doesn't have a continuous target — deploying
+// means attaching the specific parameter combination this model
+// actually produced, so it has to be entered here rather than
+// deploying blind. Every field is optional (a recommendation with no
+// numbers yet is still a valid PENDING_TRIAL record, just an
+// incomplete one), matching the honest "don't fabricate what the
+// model hasn't produced" principle used throughout the backend.
+window.openGoldenBatchDeployModal = function(modelId) {
+  openModal('Deploy Golden Batch Recommendation',
+    _field('Part Number (optional)','partNumber','text', null, null, false, 'e.g. TC-4471-B') +
+    _field('Spindle Speed (RPM)','spindleSpeedRpm','number', null, null, false) +
+    _field('Feed Rate (mm/rev)','feedRateMmRev','number', null, null, false) +
+    _field('Coolant Pressure (PSI)','coolantPsi','number', null, null, false) +
+    _field('Predicted Scrap Rate Change (%)','scrapRateDeltaPct','number', null, null, false, 'negative = improvement, e.g. -0.6') +
+    _field('Predicted Cycle Time Change (%)','cycleTimeDeltaPct','number', null, null, false, 'negative = faster, e.g. -3.2'),
+    async function(payload) {
+      var recommendedParams = {};
+      if (payload.spindleSpeedRpm) recommendedParams.spindleSpeedRpm = Number(payload.spindleSpeedRpm);
+      if (payload.feedRateMmRev) recommendedParams.feedRateMmRev = Number(payload.feedRateMmRev);
+      if (payload.coolantPsi) recommendedParams.coolantPsi = Number(payload.coolantPsi);
+      var predictedImprovement = {};
+      if (payload.scrapRateDeltaPct) predictedImprovement.scrapRateDeltaPct = Number(payload.scrapRateDeltaPct);
+      if (payload.cycleTimeDeltaPct) predictedImprovement.cycleTimeDeltaPct = Number(payload.cycleTimeDeltaPct);
+      await _patch('/api/v1/lab/models/'+modelId, {
+        deployedToPilot: true, partNumber: payload.partNumber || undefined,
+        recommendedParams: Object.keys(recommendedParams).length ? recommendedParams : undefined,
+        predictedImprovement: Object.keys(predictedImprovement).length ? predictedImprovement : undefined,
+      });
+      await loadCurrentProject();
+      renderModels();
+    }
+  );
+};
+
+// Supply Chain has no natural per-project bridge to a specific
+// inventory item the way Vision/PM/Process Opt link through a data
+// source — a supplier data feed doesn't map to one item — so which
+// items this forecast applies to has to be stated explicitly here.
+window.openDemandForecastDeployModal = function(modelId) {
+  openModal('Deploy Demand Forecast Recommendation',
+    _field('Inventory Item Part Numbers (comma-separated)','partNumbers','text', null, null, true, 'e.g. RM-2201, RM-2205') +
+    _field('Recommended Reorder Point','recommendedReorderPoint','number', null, null, false) +
+    _field('Recommended Safety Stock','recommendedSafetyStock','number', null, null, false) +
+    _field('Avg Daily Demand (basis)','avgDailyDemand','number', null, null, false) +
+    _field('Lead Time Used (days, basis)','leadTimeDaysUsed','number', null, null, false),
+    async function(payload) {
+      var partNumbers = (payload.partNumbers || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+      var itemsRes = await fetch('/api/v1/inventory?partNumbers=' + encodeURIComponent(partNumbers.join(',')), { credentials:'same-origin' });
+      var items = itemsRes.ok ? (await itemsRes.json()).data : [];
+      if (!items.length) throw new Error('No matching inventory items found for those part numbers');
+      var forecastBasis = {};
+      if (payload.avgDailyDemand) forecastBasis.avgDailyDemand = Number(payload.avgDailyDemand);
+      if (payload.leadTimeDaysUsed) forecastBasis.leadTimeDaysUsed = Number(payload.leadTimeDaysUsed);
+      await _patch('/api/v1/lab/models/'+modelId, {
+        deployedToPilot: true,
+        inventoryItemIds: items.map(function(i){ return i.id; }),
+        recommendedReorderPoint: payload.recommendedReorderPoint || undefined,
+        recommendedSafetyStock: payload.recommendedSafetyStock || undefined,
+        forecastBasis: Object.keys(forecastBasis).length ? forecastBasis : undefined,
+      });
+      await loadCurrentProject();
+      renderModels();
+    }
+  );
+};
+
 window.openAddModel = function() {
   openModal('Register Model',
     _field('Name','name','text') +
@@ -542,6 +837,79 @@ function renderAllProjects() {
     '</div>';
 }
 
+// ── Org Settings: Active Verticals ──────────────────────────
+async function renderOrgSettings() {
+  var el = _mainEl();
+  el.innerHTML = '<div class="pt">Active Verticals</div>' +
+    '<div class="ps">Which of the 18 SensorModel verticals this org actually operates in. This scopes the catalog picker in Site Onboarding and what gets seeded by default — a client using only Manufacturing sensors should not see Aerospace or Healthcare noise.</div>' +
+    '<div id="verticals-list" class="card" style="padding:20px;text-align:center;color:var(--muted)">Loading...</div>';
+
+  var allVerticals = [], activeSet = {};
+  try {
+    var [vRes, aRes] = await Promise.all([
+      fetch('/api/v1/catalog/verticals', { credentials:'same-origin' }),
+      fetch('/api/v1/org/verticals', { credentials:'same-origin' }),
+    ]);
+    allVerticals = vRes.ok ? (await vRes.json()).data : [];
+    var active = aRes.ok ? (await aRes.json()).data.activeVerticals : [];
+    active.forEach(function(v){ activeSet[v] = true; });
+  } catch(e) {
+    document.getElementById('verticals-list').innerHTML = 'Could not load verticals.';
+    return;
+  }
+
+  if (!allVerticals.length) {
+    document.getElementById('verticals-list').innerHTML =
+      'Catalog is empty. <button class="btn btn-secondary" onclick="seedCatalogAndReload()">Load SensorModel Catalog Defaults</button>';
+    return;
+  }
+
+  document.getElementById('verticals-list').outerHTML =
+    '<div class="module-grid" id="verticals-list">' +
+    allVerticals.map(function(v) {
+      var isActive = !!activeSet[v.vertical];
+      return '<div class="card" style="margin:0;cursor:pointer;border-color:' + (isActive ? 'rgba(0,194,224,.4)' : 'var(--border)') + '" onclick="toggleVertical(this,' + JSON.stringify(v.vertical) + ')" data-vertical="' + v.vertical.replace(/"/g,'&quot;') + '" data-active="' + isActive + '">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center">' +
+          '<div style="font-size:12.5px;font-weight:700;color:var(--text)">' + v.vertical + '</div>' +
+          '<div class="vertical-check" style="width:16px;height:16px;border-radius:4px;border:2px solid ' + (isActive ? '#00c2e0' : 'var(--muted)') + ';background:' + (isActive ? '#00c2e0' : 'transparent') + '"></div>' +
+        '</div>' +
+        '<div style="font-size:10.5px;color:var(--muted);margin-top:4px">' + v.sensorCount + ' sensor definition(s) in catalog</div>' +
+      '</div>';
+    }).join('') +
+    '</div>' +
+    '<div style="margin-top:16px"><button class="btn btn-primary" onclick="saveActiveVerticals()">Save Active Verticals</button></div>';
+}
+
+window.toggleVertical = function(cardEl, vertical) {
+  var isActive = cardEl.dataset.active === 'true';
+  var newActive = !isActive;
+  cardEl.dataset.active = newActive;
+  cardEl.style.borderColor = newActive ? 'rgba(0,194,224,.4)' : 'var(--border)';
+  var check = cardEl.querySelector('.vertical-check');
+  check.style.borderColor = newActive ? '#00c2e0' : 'var(--muted)';
+  check.style.background = newActive ? '#00c2e0' : 'transparent';
+};
+
+window.saveActiveVerticals = async function() {
+  var cards = document.querySelectorAll('#verticals-list [data-vertical]');
+  var activeVerticals = [];
+  cards.forEach(function(c) { if (c.dataset.active === 'true') activeVerticals.push(c.dataset.vertical); });
+  try {
+    await fetch('/api/v1/org/verticals', {
+      method: 'PATCH', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ activeVerticals: activeVerticals }),
+    });
+    _toast('\u2713 Saved ' + activeVerticals.length + ' active vertical(s)');
+  } catch(e) { alert('Could not save: ' + e.message); }
+};
+
+window.seedCatalogAndReload = async function() {
+  try {
+    await _post('/api/v1/catalog/seed-defaults', {});
+    renderOrgSettings();
+  } catch(e) { alert('Could not seed catalog: ' + e.message); }
+};
+
 // ── Shared modal + form helpers ─────────────────────────────
 function _field(label, name, type, options, labelMap, required, placeholder) {
   if (required === undefined) required = true;
@@ -559,13 +927,14 @@ function _field(label, name, type, options, labelMap, required, placeholder) {
   }
   return '<div class="field"><label>'+label+'</label>'+input+'</div>';
 }
-function openModal(title, bodyHtml, onSubmit) {
+function openModal(title, bodyHtml, onSubmit, opts) {
+  opts = opts || {};
   var existing = document.getElementById('modal-overlay');
   if (existing) existing.remove();
   var overlay = document.createElement('div');
   overlay.id = 'modal-overlay';
   overlay.innerHTML =
-    '<div class="modal">' +
+    '<div class="modal"'+(opts.wide ? ' style="max-width:560px"' : '')+'>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
         '<div style="font-size:14px;font-weight:700;color:var(--text)">'+title+'</div>' +
         '<button onclick="document.getElementById(\'modal-overlay\').remove()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">×</button>' +
@@ -577,6 +946,9 @@ function openModal(title, bodyHtml, onSubmit) {
     '</div>';
   document.body.appendChild(overlay);
   overlay.addEventListener('click', function(e){ if (e.target===overlay) overlay.remove(); });
+  // Optional hook for wiring up dynamic behavior (cascading dropdowns,
+  // conditional field visibility) after the form is actually in the DOM.
+  if (opts.onMount) opts.onMount(document.getElementById('modal-form'));
   document.getElementById('modal-form').addEventListener('submit', async function(e){
     e.preventDefault();
     var btn = e.target.querySelector('button[type=submit]');

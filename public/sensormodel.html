@@ -1582,7 +1582,9 @@ function selectSensor(id) {
   document.querySelectorAll('.sensor-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('sbtn_' + id)?.classList.add('active');
   document.getElementById('chartTitle').textContent =
-    activeSensor.name + '  |  ' + activeSensor.desc + '  |  ' + activeSensor.vertical;
+    activeSensor.name + '  |  ' + activeSensor.desc + '  |  ' + activeSensor.vertical +
+    (activeSensor.activeModel ? '  |  Deployed: ' + activeSensor.activeModel.name + ' ' + activeSensor.activeModel.version +
+      (activeSensor.activeModel.accuracyPct ? ' (' + activeSensor.activeModel.accuracyPct.toFixed(1) + '%)' : '') : '');
   document.getElementById('mc-model-name').textContent = modelType.toUpperCase();
   document.getElementById('alarmLog').innerHTML = '<div style="font-size:10px;color:var(--text3);font-style:italic;">Monitoring started...</div>';
   document.getElementById('forecastBadge').textContent = activeSensor.unit;
@@ -1608,8 +1610,11 @@ function tick() {
   if (!activeSensor) return;
   const s = activeSensor;
 
-  // Generate new value
-  const newVal = generateSignal(s, tickCount++);
+  // Generate new value — real data for live sensors, synthetic engine
+  // for every simulated one (i.e., every vertical this org has no real
+  // gateway data for).
+  const newVal = s.isLive ? getLiveValue(s) : generateSignal(s, tickCount);
+  tickCount++;
   history.push({ t: tickCount, v: newVal });
   if (history.length > 200) history.shift();
 
@@ -1989,6 +1994,81 @@ function showToast(msg) {
 // ============================================================
 // INIT
 // ============================================================
+// ══════════════════════════════════════════════════════════════
+//  LIVE DATA WIRING — for verticals where this org actually has
+//  real sensors (via CorverxisLab site onboarding + the IIoT
+//  gateway agent), pull real values instead of the synthetic
+//  generateSignal(). The EKF/LSTM/ARIMA/Fourier/Ensemble math in
+//  tick() is untouched — it operates on whatever `newVal` it's
+//  given, real or synthetic, exactly the same way. Every other
+//  vertical this org doesn't have real data for stays fully
+//  simulated, which is the honest behavior: a client using only
+//  Manufacturing sensors has no real Aerospace/Healthcare data to
+//  show, and shouldn't be shown fake numbers labeled as real.
+// ============================================================
+var liveValueCache = {};      // dbSensorId -> latest real value
+var liveSensorMeta  = {};     // dbSensorId -> {status, lastReading, ...}
+var liveFetchFailed = false;
+
+async function fetchLiveSensors() {
+  try {
+    var r = await fetch('/api/v1/sensors/live', { credentials: 'same-origin' });
+    if (!r.ok) throw new Error('unavailable');
+    var body = await r.json();
+    var rows = body.data || [];
+    var isFirstLoad = Object.keys(liveValueCache).length === 0 && rows.length > 0;
+
+    rows.forEach(function(row) {
+      if (row.value !== null) liveValueCache[row.id] = row.value;
+      liveSensorMeta[row.id] = { status: row.status, lastReading: row.lastReading, asset: row.asset };
+    });
+
+    if (isFirstLoad) injectLiveSensorGroup(rows);
+    else if (rows.length) updateLiveSidebarValues();
+  } catch (e) {
+    liveFetchFailed = true; // fine — just means this org has no live gateway data yet, stay fully simulated
+  }
+}
+
+function injectLiveSensorGroup(rows) {
+  if (!rows.length) return;
+  var liveSensors = rows.map(function(row) {
+    return {
+      id: 'live_' + row.id, liveSensorId: row.id, isLive: true,
+      name: row.name, unit: row.unit,
+      baseline: row.value || 0, warn: row.warn || (row.value || 0) * 1.5, crit: row.crit || (row.value || 0) * 2,
+      rul: 999999, color: row.status === 'CRITICAL' ? '#ef4444' : row.status === 'WARNING' ? '#f59e0b' : '#22c55e',
+      freq: 'live', desc: (row.asset || 'Live asset') + (row.location ? ' — ' + row.location : ''),
+      vertical: '● Live — Your Plant', activeModel: row.activeModel || null,
+    };
+  });
+  SENSOR_GROUPS.unshift({ vertical: '● Live — Your Plant', sensors: liveSensors, isLiveGroup: true });
+  // ALL_SENSORS is a `const` computed once at page load from the original
+  // SENSOR_GROUPS — selectSensor() looks sensors up here, so the newly
+  // injected live sensors need to be added to this array too, not just
+  // to SENSOR_GROUPS and the rebuilt sidebar DOM.
+  liveSensors.forEach(function(s){ ALL_SENSORS.push(s); });
+  buildSidebar();
+}
+
+function updateLiveSidebarValues() {
+  Object.keys(liveValueCache).forEach(function(dbId) {
+    var el = document.getElementById('sval_live_' + dbId);
+    if (el && !activeSensor) el.textContent = liveValueCache[dbId].toFixed(2);
+  });
+}
+
+function getLiveValue(sensor) {
+  var v = liveValueCache[sensor.liveSensorId];
+  // If a real reading hasn't arrived yet (gateway hasn't pushed since page
+  // load), fall back to the synthetic engine rather than showing nothing —
+  // this only happens transiently right after selecting a live sensor.
+  return (typeof v === 'number') ? v : generateSignal(sensor, tickCount);
+}
+
+fetchLiveSensors();
+setInterval(fetchLiveSensors, 5000); // matches a reasonable poll cadence against the gateway agent's default 30s push interval
+
 buildSidebar();
 // Auto-select first sensor
 setTimeout(() => selectSensor('mfg_vib'), 300);
