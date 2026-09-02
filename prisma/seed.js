@@ -149,6 +149,23 @@ async function main() {
   });
   console.log(`✓ Org: ${org.name}`);
 
+  // ── Backfill legacy VisionJob rows ────────────────────────────────────────────
+  // orgId was added to vision_jobs after rows already existed in production —
+  // it's nullable in the schema specifically so the column addition itself
+  // never fails, but any pre-existing rows need a real org value filled in.
+  // Idempotent: only touches rows that are still NULL, safe to run every deploy.
+  try {
+    const backfilled = await prisma.visionJob.updateMany({
+      where: { orgId: null },
+      data:  { orgId: org.id },
+    });
+    if (backfilled.count > 0) {
+      console.log(`✓ Backfilled orgId on ${backfilled.count} legacy VisionJob row(s)`);
+    }
+  } catch (e) {
+    console.error('⚠ VisionJob orgId backfill failed (non-fatal):', e.message);
+  }
+
   // ── Super Admin user ─────────────────────────────────────────────────────────
   const admin = await prisma.user.upsert({
     where:  { email: process.env.ADMIN_EMAIL || 'admin@corverxis.com' },

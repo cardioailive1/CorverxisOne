@@ -228,8 +228,8 @@ enum AlertLevel {
 
 model VisionJob {
   id          String         @id @default(cuid())
-  orgId       String
-  org         Org            @relation(fields: [orgId], references: [id])
+  orgId       String?        // nullable rather than required — a required column with no default cannot be added via `prisma db push` against a table that already has rows (this table did, in production). Nullable lets the column addition succeed; a backfill step in the seed chain fills in real values for any pre-existing NULL rows immediately after.
+  org         Org?           @relation(fields: [orgId], references: [id])
   name        String
   partNumber  String
   revision    String         @default("Rev A")
