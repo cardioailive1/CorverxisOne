@@ -859,8 +859,19 @@ async function renderOrgSettings() {
   }
 
   if (!allVerticals.length) {
-    document.getElementById('verticals-list').innerHTML =
-      'Catalog is empty. <button class="btn btn-secondary" onclick="seedCatalogAndReload()">Load SensorModel Catalog Defaults</button>';
+    // The catalog being empty almost always means the seed chain never
+    // ran successfully on this deployment yet (e.g. every prior deploy
+    // failed before reaching `prisma db seed`) — auto-heal by seeding it
+    // immediately rather than making the user notice and click a button
+    // for what should just work.
+    document.getElementById('verticals-list').innerHTML = 'Catalog is empty — seeding automatically...';
+    try {
+      await _post('/api/v1/catalog/seed-defaults', {});
+      renderOrgSettings();
+    } catch(e) {
+      document.getElementById('verticals-list').innerHTML =
+        'Could not auto-seed the catalog (' + e.message + '). <button class="btn btn-secondary" onclick="seedCatalogAndReload()">Retry</button>';
+    }
     return;
   }
 
@@ -877,7 +888,11 @@ async function renderOrgSettings() {
       '</div>';
     }).join('') +
     '</div>' +
-    '<div style="margin-top:16px"><button class="btn btn-primary" onclick="saveActiveVerticals()">Save Active Verticals</button></div>';
+    '<div style="margin-top:16px"><button class="btn btn-primary" onclick="saveActiveVerticals()">Save Active Verticals</button></div>' +
+    '<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)">' +
+      'Provisioning a <b style="color:var(--text2)">new</b> client, not configuring this one? Verticals here only apply to the org you\'re currently signed into. ' +
+      '<a href="/internal/provision" target="_blank" style="color:#00c2e0">Open the internal client provisioning tool →</a>' +
+    '</div>';
 }
 
 window.toggleVertical = function(cardEl, vertical) {
