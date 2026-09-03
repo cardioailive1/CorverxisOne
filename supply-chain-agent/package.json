@@ -1,0 +1,14 @@
+{
+  "name": "corverxis-supply-chain-agent",
+  "version": "1.0.0",
+  "description": "Polls or watches for real supplier events and pushes them to CorverxisLab",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js",
+    "start:simulate": "MODE=simulate node agent.js",
+    "start:webhook": "MODE=webhook-poll node agent.js",
+    "start:file": "MODE=file-watch node agent.js"
+  },
+  "dependencies": {},
+  "engines": { "node": ">=18" }
+}

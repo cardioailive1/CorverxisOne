@@ -8,9 +8,15 @@
     "start:simulate": "MODE=simulate node agent.js",
     "start:opcua": "MODE=opcua node agent.js"
   },
-  "dependencies": {},
+  "dependencies": {
+    "aedes": "^0.51.3",
+    "modbus-serial": "^8.0.25",
+    "mqtt": "^5.15.2"
+  },
   "optionalDependencies": {
-    "node-opcua": "^2.126.0"
+    "node-opcua": "^2.126.0",
+    "modbus-serial": "^8.0.0",
+    "mqtt": "^5.0.0"
   },
   "engines": {
     "node": ">=18"

@@ -838,11 +838,66 @@ function renderAllProjects() {
 }
 
 // ── Org Settings: Active Verticals ──────────────────────────
+async function loadProvisioningChecklist() {
+  var el = document.getElementById('provisioning-checklist');
+  if (!el) return;
+  try {
+    var r = await fetch('/api/v1/onboarding/checklist', { credentials:'same-origin' });
+    if (!r.ok) throw new Error('unavailable');
+    var c = (await r.json()).data;
+
+    var items = [
+      { label: 'Departments', count: c.departments, expectNonZero: true },
+      { label: 'Change Initiatives', count: c.initiatives, expectNonZero: true },
+      { label: 'Risk Register Entries', count: c.risks, expectNonZero: true },
+      { label: 'Lab Projects (4 pillars)', count: c.labProjects, expectNonZero: true },
+      { label: 'Employees', count: c.employees, expectNonZero: false },
+    ];
+
+    var rowsHtml = items.map(function(item) {
+      var isOk = !item.expectNonZero || item.count > 0;
+      var icon = isOk ? '\u2713' : '\u26A0';
+      var iconColor = isOk ? '#22c55e' : '#f59e0b';
+      var note = (!item.expectNonZero && item.count === 0) ? ' <span style="color:var(--muted);font-style:italic">(normal \u2014 added by the client, not seeded)</span>' : '';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05)">' +
+        '<span style="font-size:12px;color:var(--text2)"><span style="color:' + iconColor + ';font-weight:700;margin-right:6px">' + icon + '</span>' + item.label + note + '</span>' +
+        '<span style="font-size:12px;font-weight:700;color:var(--text)">' + item.count + '</span>' +
+      '</div>';
+    }).join('');
+
+    var overallBadge = c.complete
+      ? '<span class="badge ok">\u2713 Bootstrap Complete</span>'
+      : '<span class="badge warn">\u26A0 Incomplete \u2014 some starter data is missing</span>';
+
+    el.outerHTML = '<div class="card" style="margin-bottom:20px" id="provisioning-checklist">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+        '<div class="ct" style="margin:0">Provisioning Checklist</div>' + overallBadge +
+      '</div>' + rowsHtml +
+      (!c.complete ? '<button class="btn btn-secondary" style="margin-top:12px" onclick="rerunBootstrap()">Re-run Bootstrap for This Org</button>' : '') +
+    '</div>';
+  } catch(e) {
+    el.innerHTML = 'Could not load provisioning checklist.';
+  }
+}
+
+window.rerunBootstrap = async function() {
+  try {
+    await _post('/api/v1/onboarding/bootstrap', {});
+    loadProvisioningChecklist();
+    _toast('\u2713 Bootstrap re-run \u2014 missing sections filled in');
+  } catch(e) { alert('Could not re-run bootstrap: ' + e.message); }
+};
+
 async function renderOrgSettings() {
   var el = _mainEl();
-  el.innerHTML = '<div class="pt">Active Verticals</div>' +
+  el.innerHTML = '<div class="pt">Org Settings</div>' +
+    '<div class="ps">Provisioning status and vertical configuration for the org you\'re currently signed into.</div>' +
+    '<div id="provisioning-checklist" class="card" style="padding:20px;text-align:center;color:var(--muted);margin-bottom:20px">Loading provisioning checklist...</div>' +
+    '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">Active Verticals</div>' +
     '<div class="ps">Which of the 18 SensorModel verticals this org actually operates in. This scopes the catalog picker in Site Onboarding and what gets seeded by default — a client using only Manufacturing sensors should not see Aerospace or Healthcare noise.</div>' +
     '<div id="verticals-list" class="card" style="padding:20px;text-align:center;color:var(--muted)">Loading...</div>';
+
+  loadProvisioningChecklist();
 
   var allVerticals = [], activeSet = {};
   try {

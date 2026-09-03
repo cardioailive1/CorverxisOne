@@ -35,32 +35,49 @@ data source's **Ingestion Events** tab in CorverxisLab to see them land.
 If a key is lost, use **Regenerate Key** in the UI and update `.env` —
 the old key stops working the moment a new one is generated.
 
-## Connecting to real hardware (OPC-UA)
+## Connecting to real hardware
 
 Most modern PLCs, SCADA historians, and IIoT gateways expose an
-OPC-UA server. To connect for real:
+OPC-UA server:
 
 ```bash
 npm install node-opcua
 ```
-
-Then in `.env`:
 ```
 MODE=opcua
 OPCUA_ENDPOINT_URL=opc.tcp://192.168.1.50:4840
 OPCUA_NODE_IDS=ns=2;s=Line3.Spindle.Vibration,ns=2;s=Line3.Spindle.Temperature
 ```
 
-Node IDs are specific to your PLC/historian configuration — your OT
-integrator or PLC vendor's documentation will have the exact tag
-addresses. The agent reads each configured node ID as its own
-`parameter` in the pushed batch.
+Older plant equipment commonly exposes Modbus TCP instead:
 
-**Protocols not yet supported:** Modbus TCP and MQTT are common
-alternatives to OPC-UA on older equipment. Not implemented here —
-this is the first real connector, not the complete set. Extending
-`agent.js` with a Modbus reader (via the `modbus-serial` package)
-follows the same pattern as the OPC-UA reader.
+```bash
+npm install modbus-serial
+```
+```
+MODE=modbus
+MODBUS_HOST=192.168.1.60
+MODBUS_PORT=502
+MODBUS_UNIT_ID=1
+MODBUS_REGISTERS=vibration:0:holding,temperature:2:holding
+```
+
+Or if the plant already publishes sensor data to an MQTT broker:
+
+```bash
+npm install mqtt
+```
+```
+MODE=mqtt
+MQTT_BROKER_URL=mqtt://192.168.1.70:1883
+MQTT_TOPICS=plant/line3/vibration,plant/line3/temperature
+```
+
+Node IDs and register addresses are specific to your PLC/historian
+configuration — your OT integrator or PLC vendor's documentation
+will have the exact addresses. Each reader was verified against a
+real local server/broker of its own protocol before shipping, not
+just syntax-checked.
 
 ## Running as a persistent service
 

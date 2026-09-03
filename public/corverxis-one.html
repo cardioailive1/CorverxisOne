@@ -6598,7 +6598,7 @@ async function loadDemandForecastRecs() {
     var pending = recs.filter(function(r){ return r.status === 'PENDING_REVIEW'; });
     var history = recs.filter(function(r){ return r.status !== 'PENDING_REVIEW'; });
 
-    function renderCard(rec) {
+    function renderCard(rec, selectable) {
       var item = rec.inventoryItem || {};
       var basis = rec.forecastBasis ? Object.keys(rec.forecastBasis).map(function(k) {
         return k + ': ' + rec.forecastBasis[k];
@@ -6614,8 +6614,10 @@ async function loadDemandForecastRecs() {
       var histId = 'dfhist_' + rec.id;
       return '<div class="card" style="margin:0">' +
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">' +
+          '<div style="display:flex;gap:8px;align-items:flex-start">' +
+          (selectable ? '<input type="checkbox" class="df-select" data-id="'+rec.id+'" style="margin-top:3px">' : '') +
           '<div><div style="font-size:12.5px;font-weight:700;color:#e2e8f0">' + (item.partNumber||'Unknown Item') + '</div>' +
-          '<div style="font-size:10px;color:var(--muted)">' + (item.description||'') + '</div></div>' +
+          '<div style="font-size:10px;color:var(--muted)">' + (item.description||'') + '</div></div></div>' +
           '<span class="badge ' + (STATUS_CLS[rec.status]||'info') + '" style="font-size:9px">' + rec.status.replace('_',' ') + '</span>' +
         '</div>' +
         '<div style="font-size:11px;color:var(--text2);margin-bottom:4px">Current: reorder ' + (item.reorderPoint!=null?item.reorderPoint:'\u2014') + ' \u00b7 safety ' + (item.safetyStock!=null?item.safetyStock:'\u2014') + '</div>' +
@@ -6632,18 +6634,47 @@ async function loadDemandForecastRecs() {
 
     var html = '';
     if (pending.length) {
-      html += '<div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Awaiting Review (' + pending.length + ')</div>';
-      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:20px">' + pending.map(renderCard).join('') + '</div>';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+        '<div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px">Awaiting Review (' + pending.length + ')</div>' +
+        (pending.length > 1 ? '<div style="display:flex;gap:6px;align-items:center;font-size:10px">' +
+          '<label style="color:var(--muted);cursor:pointer"><input type="checkbox" id="df-select-all" onchange="toggleAllDemandForecast(this.checked)"> Select all</label>' +
+          '<button onclick="bulkActionDemandForecast(\'ACCEPTED\')" style="padding:3px 8px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);border-radius:6px;color:#22c55e;font-size:9.5px;cursor:pointer">Bulk Accept</button>' +
+          '<button onclick="bulkActionDemandForecast(\'OVERRIDDEN\')" style="padding:3px 8px;background:rgba(107,114,128,.12);border:1px solid rgba(107,114,128,.3);border-radius:6px;color:#9ca3af;font-size:9.5px;cursor:pointer">Bulk Override</button>' +
+        '</div>' : '') +
+      '</div>';
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:20px">' + pending.map(function(r){ return renderCard(r, pending.length > 1); }).join('') + '</div>';
     }
     if (history.length) {
       html += '<div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">History (' + history.length + ')</div>';
-      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">' + history.map(renderCard).join('') + '</div>';
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">' + history.map(function(r){ return renderCard(r, false); }).join('') + '</div>';
     }
     el.innerHTML = html;
   } catch(e) {
     el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Could not load recommendations.</div>';
   }
 }
+
+window.toggleAllDemandForecast = function(checked) {
+  document.querySelectorAll('.df-select').forEach(function(cb){ cb.checked = checked; });
+};
+
+window.bulkActionDemandForecast = async function(status) {
+  var ids = Array.from(document.querySelectorAll('.df-select:checked')).map(function(cb){ return cb.dataset.id; });
+  if (!ids.length) { alert('Select at least one recommendation first.'); return; }
+  var notes = prompt((status === 'ACCEPTED' ? 'Notes on accepting these ' + ids.length + '?' : 'Why override these ' + ids.length + '?') + ' (applied to all selected, optional)');
+  var failures = 0;
+  for (var i = 0; i < ids.length; i++) {
+    try {
+      var resp = await fetch('/api/v1/lab/demand-forecast-recommendations/'+ids[i], {
+        method:'PATCH', credentials:'same-origin', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ status: status, buyerNotes: notes || undefined }),
+      });
+      if (!resp.ok) failures++;
+    } catch(e) { failures++; }
+  }
+  if (failures) alert(failures + ' of ' + ids.length + ' updates failed \u2014 the rest succeeded.');
+  loadDemandForecastRecs();
+};
 
 async function actionDemandForecastRec(id, status) {
   var notes = prompt(status === 'ACCEPTED' ? 'Notes on accepting this (optional):' : 'Why override, and what values will you use instead? (optional)');
@@ -9462,7 +9493,7 @@ async function loadGoldenBatchRecs() {
     var pending = recs.filter(function(r){ return r.status === 'PENDING_TRIAL'; });
     var history = recs.filter(function(r){ return r.status !== 'PENDING_TRIAL'; });
 
-    function renderCard(rec) {
+    function renderCard(rec, selectable) {
       var params = rec.recommendedParams ? Object.keys(rec.recommendedParams).map(function(k) {
         return '<span style="font-size:10.5px;color:var(--text2)">'+k+': <b style="color:#e2e8f0">'+rec.recommendedParams[k]+'</b></span>';
       }).join(' &nbsp;\u00b7&nbsp; ') : '<span style="font-size:10.5px;color:var(--muted);font-style:italic">No parameter values supplied yet</span>';
@@ -9471,18 +9502,20 @@ async function loadGoldenBatchRecs() {
         return '<span style="font-size:10.5px;color:'+(v<0?'var(--green)':'var(--text2)')+'">'+k+': '+v+'</span>';
       }).join(' &nbsp;\u00b7&nbsp; ') : '';
       var timeline = (rec.statusHistory || []).slice().reverse().map(function(h) {
-        var d = new Date(h.changedAt);
+        var dt = new Date(h.changedAt);
         return '<div style="display:flex;gap:8px;font-size:10px;color:var(--muted);padding:3px 0;border-left:2px solid rgba(255,255,255,.08);padding-left:8px;margin-left:2px">' +
           '<span style="color:'+(STATUS_CLS[h.status]==='ok'?'#22c55e':STATUS_CLS[h.status]==='err'?'#ef4444':'#f59e0b')+';font-weight:700">'+h.status.replace('_',' ')+'</span>' +
-          '<span>'+d.toLocaleDateString()+' '+d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})+' \u00b7 '+(h.changedBy||'unknown')+'</span>' +
+          '<span>'+dt.toLocaleDateString()+' '+dt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})+' \u00b7 '+(h.changedBy||'unknown')+'</span>' +
           (h.notes ? '<span style="color:var(--text2)">\u2014 '+h.notes+'</span>' : '') +
         '</div>';
       }).join('');
       var histId = 'gbhist_' + rec.id;
       return '<div class="card" style="margin-bottom:12px">' +
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">' +
+          '<div style="display:flex;gap:10px;align-items:flex-start">' +
+          (selectable ? '<input type="checkbox" class="gb-select" data-id="'+rec.id+'" style="margin-top:4px">' : '') +
           '<div><div style="font-size:13px;font-weight:700;color:#e2e8f0">'+(rec.asset?.name||'Unknown Asset')+(rec.partNumber?' \u2014 '+rec.partNumber:'')+'</div>' +
-          '<div style="font-size:10.5px;color:var(--muted)">Model: '+(rec.model?.name||'\u2014')+' '+(rec.model?.latestVersion||'')+(rec.model?.accuracyPct?' \u00b7 '+rec.model.accuracyPct.toFixed(1)+'% accuracy':'')+'</div></div>' +
+          '<div style="font-size:10.5px;color:var(--muted)">Model: '+(rec.model?.name||'\u2014')+' '+(rec.model?.latestVersion||'')+(rec.model?.accuracyPct?' \u00b7 '+rec.model.accuracyPct.toFixed(1)+'% accuracy':'')+'</div></div></div>' +
           '<span class="badge '+(STATUS_CLS[rec.status]||'info')+'">'+rec.status.replace('_',' ')+'</span>' +
         '</div>' +
         '<div style="margin-bottom:6px">'+params+'</div>' +
@@ -9498,18 +9531,47 @@ async function loadGoldenBatchRecs() {
 
     var html = '';
     if (pending.length) {
-      html += '<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Awaiting Review (' + pending.length + ')</div>';
-      html += pending.map(renderCard).join('');
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+        '<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px">Awaiting Review (' + pending.length + ')</div>' +
+        (pending.length > 1 ? '<div style="display:flex;gap:8px;align-items:center;font-size:10.5px">' +
+          '<label style="color:var(--muted);cursor:pointer"><input type="checkbox" id="gb-select-all" onchange="toggleAllGoldenBatch(this.checked)"> Select all</label>' +
+          '<button onclick="bulkActionGoldenBatch(\'VALIDATED\')" style="padding:4px 10px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);border-radius:6px;color:#22c55e;font-size:10.5px;cursor:pointer">Bulk Validate</button>' +
+          '<button onclick="bulkActionGoldenBatch(\'REJECTED\')" style="padding:4px 10px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:6px;color:#ef4444;font-size:10.5px;cursor:pointer">Bulk Reject</button>' +
+        '</div>' : '') +
+      '</div>';
+      html += pending.map(function(r){ return renderCard(r, pending.length > 1); }).join('');
     }
     if (history.length) {
       html += '<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin:20px 0 10px">History (' + history.length + ')</div>';
-      html += history.map(renderCard).join('');
+      html += history.map(function(r){ return renderCard(r, false); }).join('');
     }
     el.innerHTML = html;
   } catch(e) {
     el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:12px">Could not load recommendations.</div>';
   }
 }
+
+window.toggleAllGoldenBatch = function(checked) {
+  document.querySelectorAll('.gb-select').forEach(function(cb){ cb.checked = checked; });
+};
+
+window.bulkActionGoldenBatch = async function(status) {
+  var ids = Array.from(document.querySelectorAll('.gb-select:checked')).map(function(cb){ return cb.dataset.id; });
+  if (!ids.length) { alert('Select at least one recommendation first.'); return; }
+  var notes = prompt((status === 'REJECTED' ? 'Why were these ' + ids.length + ' rejected?' : 'Trial notes for these ' + ids.length + ' confirmations?') + ' (applied to all selected, optional)');
+  var failures = 0;
+  for (var i = 0; i < ids.length; i++) {
+    try {
+      var resp = await fetch('/api/v1/lab/golden-batch-recommendations/'+ids[i], {
+        method:'PATCH', credentials:'same-origin', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ status: status, trialNotes: notes || undefined }),
+      });
+      if (!resp.ok) failures++;
+    } catch(e) { failures++; }
+  }
+  if (failures) alert(failures + ' of ' + ids.length + ' updates failed \u2014 the rest succeeded.');
+  loadGoldenBatchRecs();
+};
 
 async function actionGoldenBatchRec(id, status) {
   var notes = status === 'REJECTED' ? prompt('Why was this rejected? (optional)') : prompt('Trial notes (optional):');

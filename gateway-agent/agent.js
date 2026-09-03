@@ -54,6 +54,15 @@ function loadConfig() {
     // OPC-UA specific
     opcuaEndpoint:  env.OPCUA_ENDPOINT_URL         || fileConfig.opcuaEndpoint,
     opcuaNodeIds:   (env.OPCUA_NODE_IDS            || fileConfig.opcuaNodeIds || '').split(',').map(s => s.trim()).filter(Boolean),
+    // Modbus TCP specific
+    modbusHost:     env.MODBUS_HOST                || fileConfig.modbusHost,
+    modbusPort:     Number(env.MODBUS_PORT         || fileConfig.modbusPort || 502),
+    modbusUnitId:   Number(env.MODBUS_UNIT_ID      || fileConfig.modbusUnitId || 1),
+    // Comma-separated "name:register:type" triples, e.g. "vibration:0:holding,temperature:2:holding"
+    modbusRegisters: (env.MODBUS_REGISTERS         || fileConfig.modbusRegisters || '').split(',').map(s => s.trim()).filter(Boolean),
+    // MQTT specific
+    mqttBrokerUrl:  env.MQTT_BROKER_URL            || fileConfig.mqttBrokerUrl,
+    mqttTopics:     (env.MQTT_TOPICS               || fileConfig.mqttTopics || '').split(',').map(s => s.trim()).filter(Boolean),
   };
   if (!cfg.dataSourceId || !cfg.apiKey) {
     console.error('❌ Missing required config: CORVERXIS_DATA_SOURCE_ID and CORVERXIS_API_KEY must be set (env vars or config.json).');
@@ -160,6 +169,105 @@ async function makeOpcuaReader(cfg) {
   };
 }
 
+// ── Modbus TCP mode: common on older PLCs/plant equipment ──────
+// Requires the optional `modbus-serial` dependency. Reads holding or
+// input registers by address — the client's PLC documentation or
+// integrator specifies which addresses map to which real values.
+async function makeModbusReader(cfg) {
+  let ModbusRTU;
+  try {
+    ModbusRTU = require('modbus-serial');
+  } catch (e) {
+    console.error('❌ MODE=modbus requires the modbus-serial package. Run: npm install modbus-serial');
+    process.exit(1);
+  }
+  if (!cfg.modbusHost || !cfg.modbusRegisters.length) {
+    console.error('❌ MODE=modbus requires MODBUS_HOST and MODBUS_REGISTERS (name:address:type, comma-separated) to be set.');
+    process.exit(1);
+  }
+
+  const registers = cfg.modbusRegisters.map((r) => {
+    const [name, address, type] = r.split(':');
+    return { name, address: Number(address), type: (type || 'holding').toLowerCase() };
+  });
+
+  const client = new ModbusRTU();
+  console.log(`Connecting to Modbus TCP at ${cfg.modbusHost}:${cfg.modbusPort} (unit ${cfg.modbusUnitId}) ...`);
+  await client.connectTCP(cfg.modbusHost, { port: cfg.modbusPort });
+  client.setID(cfg.modbusUnitId);
+  console.log('✓ Modbus TCP connection established');
+
+  return {
+    sample: async () => {
+      const readings = [];
+      for (const reg of registers) {
+        try {
+          const result = reg.type === 'input'
+            ? await client.readInputRegisters(reg.address, 1)
+            : await client.readHoldingRegisters(reg.address, 1);
+          readings.push({ parameter: reg.name, value: result.data[0], timestamp: new Date().toISOString() });
+        } catch (e) {
+          console.error(`⚠ Modbus read failed for ${reg.name} (register ${reg.address}):`, e.message);
+        }
+      }
+      return readings;
+    },
+    close: async () => { client.close(() => {}); },
+  };
+}
+
+// ── MQTT mode: subscribes to a broker, buffers messages between ──
+// pushes rather than polling on an interval. Requires the optional
+// `mqtt` dependency. Expects each message payload to be JSON shaped
+// like { parameter, value } or a bare number (topic name used as
+// the parameter in that case).
+async function makeMqttReader(cfg) {
+  let mqtt;
+  try {
+    mqtt = require('mqtt');
+  } catch (e) {
+    console.error('❌ MODE=mqtt requires the mqtt package. Run: npm install mqtt');
+    process.exit(1);
+  }
+  if (!cfg.mqttBrokerUrl || !cfg.mqttTopics.length) {
+    console.error('❌ MODE=mqtt requires MQTT_BROKER_URL and MQTT_TOPICS (comma-separated) to be set.');
+    process.exit(1);
+  }
+
+  let buffer = [];
+  console.log(`Connecting to MQTT broker at ${cfg.mqttBrokerUrl} ...`);
+  const client = mqtt.connect(cfg.mqttBrokerUrl);
+
+  await new Promise((resolve, reject) => {
+    client.on('connect', () => {
+      console.log('✓ MQTT connected, subscribing to:', cfg.mqttTopics.join(', '));
+      client.subscribe(cfg.mqttTopics, (err) => { if (err) reject(err); else resolve(); });
+    });
+    client.on('error', reject);
+  });
+
+  client.on('message', (topic, payload) => {
+    try {
+      const parsed = JSON.parse(payload.toString());
+      if (typeof parsed === 'number') {
+        buffer.push({ parameter: topic, value: parsed, timestamp: new Date().toISOString() });
+      } else if (parsed && typeof parsed.value === 'number') {
+        buffer.push({ parameter: parsed.parameter || topic, value: parsed.value, timestamp: parsed.timestamp || new Date().toISOString() });
+      }
+    } catch (e) {
+      const num = Number(payload.toString());
+      if (!isNaN(num)) buffer.push({ parameter: topic, value: num, timestamp: new Date().toISOString() });
+    }
+  });
+
+  return {
+    // MQTT is push-based, not poll-based — sample() just drains whatever
+    // has arrived since the last call, rather than actively reading.
+    sample: async () => { const out = buffer; buffer = []; return out; },
+    close: async () => { client.end(); },
+  };
+}
+
 // ── Main loop ────────────────────────────────────────────────
 async function main() {
   const cfg = loadConfig();
@@ -178,6 +286,14 @@ async function main() {
 
   if (cfg.mode === 'opcua') {
     const reader = await makeOpcuaReader(cfg);
+    sampler = reader.sample;
+    closeFn = reader.close;
+  } else if (cfg.mode === 'modbus') {
+    const reader = await makeModbusReader(cfg);
+    sampler = reader.sample;
+    closeFn = reader.close;
+  } else if (cfg.mode === 'mqtt') {
+    const reader = await makeMqttReader(cfg);
     sampler = reader.sample;
     closeFn = reader.close;
   } else {

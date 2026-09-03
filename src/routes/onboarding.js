@@ -70,35 +70,46 @@ async function bootstrapOrg(orgId, opts = {}) {
   } catch (e) { results.verticals = { error: e.message }; }
 
   try {
-    const c = await prisma.productionLine.count({ where: { orgId } });
-    if (c === 0) {
-      const line = await prisma.productionLine.create({ data: { orgId, name: 'Line 1', description: 'Default starter production line — rename or add more as needed', location: 'Main Floor', active: true } });
-      // Seed one starter Asset per selected vertical, with Sensors pulled
-      // directly from the SensorModel catalog for that vertical — this is
-      // the concrete "only configure what this client actually uses" path.
-      let assetCount = 0, sensorCount = 0;
-      for (const vertical of verticals) {
-        const catalogSensors = await prisma.sensorModelCatalogEntry.findMany({ where: { vertical }, take: 4 });
-        if (!catalogSensors.length) continue;
-        const asset = await prisma.asset.create({ data: { orgId, name: `${vertical} Cell 1`, description: `Starter asset for the ${vertical} vertical`, vertical, location: 'Main Floor' } });
-        assetCount++;
-        for (const cs of catalogSensors) {
-          await prisma.sensor.create({
-            data: {
-              name: cs.name, type: cs.freqCategory, unit: cs.unit, assetId: asset.id,
-              mlAlgorithm: 'ensemble',
-              thresholds: { warn: cs.warnThreshold, crit: cs.critThreshold, baseline: cs.baselineValue },
-            },
-          }).catch(() => {});
-          sensorCount++;
-        }
-      }
-      results.productionLines = { created: 1 };
-      results.assets = { created: assetCount };
-      results.sensors = { created: sensorCount };
-    } else {
-      results.productionLines = { skipped: c };
+    // Two independent checks, deliberately not one combined guard: a
+    // ProductionLine existing does NOT mean every vertical's starter
+    // Asset was successfully seeded — if the SensorModel catalog was
+    // still empty on an earlier bootstrap run, the whole per-vertical
+    // loop below would have silently produced nothing for every
+    // vertical, while the ProductionLine itself still got created.
+    // Re-running bootstrap after the catalog is populated needs to
+    // backfill those missing per-vertical assets specifically, not
+    // skip this whole block just because SOME production line exists.
+    let line = await prisma.productionLine.findFirst({ where: { orgId } });
+    let lineWasCreated = false;
+    if (!line) {
+      line = await prisma.productionLine.create({ data: { orgId, name: 'Line 1', description: 'Default starter production line — rename or add more as needed', location: 'Main Floor', active: true } });
+      lineWasCreated = true;
     }
+    results.productionLines = lineWasCreated ? { created: 1 } : { skipped: 1 };
+
+    let assetCount = 0, sensorCount = 0, skippedVerticals = [];
+    for (const vertical of verticals) {
+      const existingAsset = await prisma.asset.findFirst({ where: { orgId, vertical } });
+      if (existingAsset) continue; // this vertical already has its starter asset — don't duplicate
+
+      const catalogSensors = await prisma.sensorModelCatalogEntry.findMany({ where: { vertical }, take: 4 });
+      if (!catalogSensors.length) { skippedVerticals.push(vertical); continue; } // catalog still empty for this vertical — nothing to seed yet, will backfill on a future run
+
+      const asset = await prisma.asset.create({ data: { orgId, name: `${vertical} Cell 1`, description: `Starter asset for the ${vertical} vertical`, vertical, location: 'Main Floor' } });
+      assetCount++;
+      for (const cs of catalogSensors) {
+        await prisma.sensor.create({
+          data: {
+            name: cs.name, type: cs.freqCategory, unit: cs.unit, assetId: asset.id,
+            mlAlgorithm: 'ensemble',
+            thresholds: { warn: cs.warnThreshold, crit: cs.critThreshold, baseline: cs.baselineValue },
+          },
+        }).catch(() => {});
+        sensorCount++;
+      }
+    }
+    results.assets = { created: assetCount, alreadyPresentOrSkipped: verticals.length - assetCount, skippedVerticals };
+    results.sensors = { created: sensorCount };
   } catch (e) { results.productionLines = { error: e.message }; }
 
   try {
