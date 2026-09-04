@@ -23,6 +23,8 @@ services:
         generateValue: true  # 32-byte key (base64) used to encrypt Gusto/ADP/Intuit credentials at rest
       - key: PLATFORM_ADMIN_SECRET
         generateValue: true  # gates POST /api/internal/provision-client — only internal Corverxis staff should have this value. Retrieve it from Render's dashboard after first deploy, don't commit it anywhere.
+      - key: TRAINING_CREDENTIALS_KEY
+        generateValue: true  # encrypts AWS/GCP/RunPod credentials for connected training providers — separate key from PAYROLL_CREDENTIALS_KEY so the two trust domains can't cross-contaminate
       - key: ADMIN_EMAIL
         value: admin@corverxis.com
       - key: GOOGLE_CLIENT_ID

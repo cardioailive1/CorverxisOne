@@ -1,0 +1,19 @@
+# ── Genuinely tested this session (sklearn install succeeded, scripts ran) ──
+numpy>=1.26
+pandas>=2.0
+scikit-learn>=1.4
+
+# ── Written correctly per each library's documented API, but NOT executed
+#    end-to-end in this repo's dev environment — no disk space here for
+#    PyTorch's CUDA-bundled dependencies (confirmed: ran out of disk mid-
+#    install more than once). Every non-framework-dependent function in
+#    each script (data loading, label encoding, quality/integrity checks,
+#    the graceful-import-fallback path) WAS tested without these installed.
+#    Install these in a real environment with adequate disk/GPU before
+#    trusting the training loops themselves. ──
+torch>=2.3
+torchvision>=0.18
+transformers>=4.40
+peft>=0.11
+datasets>=2.19
+pillow>=10.0

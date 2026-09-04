@@ -94,6 +94,7 @@ tr:last-child td{border-bottom:none}
 
     <div class="nav-section-label">Org Settings</div>
     <div class="nav-item" data-tab="orgsettings" onclick="showTab('orgsettings')"><span class="nav-icon">⚙</span>Active Verticals</div>
+    <div class="nav-item" data-tab="trainingproviders" onclick="showTab('trainingproviders')"><span class="nav-icon">☁</span>Cloud Training</div>
 
     <div class="sidebar-footer">
       <div id="lab-live-badge" style="color:#f59e0b">CONNECTING…</div>
@@ -212,7 +213,7 @@ window.showTab = function(tab) {
   var renderers = {
     overview: renderOverview, onboarding: renderOnboarding, infra: renderInfra,
     datasets: renderDatasets, training: renderTraining, models: renderModels,
-    allprojects: renderAllProjects, orgsettings: renderOrgSettings,
+    allprojects: renderAllProjects, orgsettings: renderOrgSettings, trainingproviders: renderTrainingProviders,
   };
   (renderers[tab] || renderOverview)();
 };
@@ -679,18 +680,32 @@ window.advanceJob = async function(id, status) {
     _toast('✓ Job status: '+status);
   } catch(e) { alert('Could not update job: '+e.message); }
 };
-window.openLaunchJob = function() {
+window.openLaunchJob = async function() {
   var datasetOpts = CURRENT_PROJECT.datasets.map(function(d){ return { value:d.id, label:d.name+' ('+d.version+')' }; });
+
+  var providers = [];
+  try {
+    var r = await fetch('/api/v1/lab/training-providers', { credentials:'same-origin' });
+    if (r.ok) providers = ((await r.json()).data || []).filter(function(p){ return p.status === 'CONNECTED'; });
+  } catch(e) {}
+
   openModal('Launch Training Job',
     _field('Model type','modelType','select',['CLASSICAL_ML','TIME_SERIES','VISION','LLM'], MODELTYPE_LABELS) +
-    _field('Base model / architecture','baseModel','text', null, false, 'e.g. ResNet-50, LSTM, Qwen 3.5 9B') +
-    _field('Method','method','text', null, false, 'e.g. LoRA, Transfer Learning, Ensemble Fit') +
+    _field('Base model / architecture','baseModel','text', null, null, false, 'e.g. ResNet-50, LSTM, Qwen 3.5 9B') +
+    _field('Method','method','text', null, null, false, 'e.g. LoRA, Transfer Learning, Ensemble Fit') +
     _field('GPU tier','gpuTier','select',['CPU Cluster','Flash — Single GPU','Pro — H100 80GB','Ultra — 8× H100'], null, false) +
-    (datasetOpts.length ? _field('Dataset','datasetId','select', datasetOpts.map(function(o){return o.value;}), datasetOpts.reduce(function(a,o){a[o.value]=o.label;return a;},{}), false) : ''),
+    (datasetOpts.length ? _field('Dataset','datasetId','select', datasetOpts.map(function(o){return o.value;}), datasetOpts.reduce(function(a,o){a[o.value]=o.label;return a;},{}), false) : '') +
+    (providers.length
+      ? _field('Run on real GPU compute (optional)','providerId','select',
+          [''].concat(providers.map(function(p){return p.id;})),
+          providers.reduce(function(a,p){a[p.id]=p.provider+(p.region?' — '+p.region:'');return a;}, {'':'— Lab-tracked only, no real compute —'}),
+          false)
+      : '<div class="field"><label>Run on real GPU compute</label><div style="font-size:11px;color:var(--muted);padding:6px 0">No connected training providers yet. <a href="#" onclick="showTab(\'trainingproviders\');document.getElementById(\'modal-overlay\').remove();return false" style="color:#00c2e0">Connect one</a> to dispatch this job to real AWS/GCP/RunPod compute instead of just tracking it.</div></div>'),
     async function(payload){
-      await _post('/api/v1/lab/projects/'+CURRENT_PROJECT.id+'/training-jobs', payload);
+      var result = await _post('/api/v1/lab/projects/'+CURRENT_PROJECT.id+'/training-jobs', payload);
       await loadCurrentProject();
       renderTraining();
+      if (result.dispatched) _toast('✓ Dispatched to real GPU compute — job ID: ' + (result.data.externalJobId||'').slice(0,16));
     }
   );
 };
@@ -816,6 +831,117 @@ window.openAddModel = function() {
 };
 
 // ── All Projects (cross-pilot view) ─────────────────────────
+// ── Cloud Training Providers (AWS / GCP / RunPod) ──────────
+var PROVIDER_LABELS = { AWS_SAGEMAKER: 'AWS SageMaker', GCP_VERTEX_AI: 'GCP Vertex AI', RUNPOD: 'RunPod' };
+var PROVIDER_STATUS_CLS = { CONNECTED: 'ok', NOT_CONNECTED: 'muted', ERROR: 'err' };
+
+async function renderTrainingProviders() {
+  var el = _mainEl();
+  el.innerHTML = '<div class="pt">Cloud Training Providers</div>' +
+    '<div class="ps">Connect a real AWS, GCP, or RunPod account so training jobs can actually run on rented GPU compute instead of only being tracked in the Lab. Credentials are encrypted at rest and never shown again after entry.</div>' +
+    '<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn btn-primary" onclick="openConnectProvider()">+ Connect a Provider</button></div>' +
+    '<div id="providers-list"><div style="text-align:center;padding:30px;color:var(--muted)">Loading...</div></div>';
+
+  try {
+    var r = await fetch('/api/v1/lab/training-providers', { credentials:'same-origin' });
+    var providers = r.ok ? (await r.json()).data : [];
+    var listEl = document.getElementById('providers-list');
+    if (!providers.length) {
+      listEl.innerHTML = '<div class="card" style="text-align:center;padding:30px;color:var(--muted)">No cloud providers connected yet. Training jobs will stay Lab-tracked-only (manual status updates, no real compute) until you connect one.</div>';
+      return;
+    }
+    listEl.innerHTML = providers.map(function(p) {
+      return '<div class="card" style="margin-bottom:10px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center">' +
+          '<div><div style="font-size:13px;font-weight:700;color:#e2e8f0">' + (PROVIDER_LABELS[p.provider]||p.provider) + (p.region?' — '+p.region:'') + '</div>' +
+          '<div style="font-size:10.5px;color:var(--muted)">' + (p.lastVerifiedAt ? 'Last verified ' + new Date(p.lastVerifiedAt).toLocaleString() : 'Never tested') + '</div></div>' +
+          '<div style="display:flex;gap:8px;align-items:center">' +
+            '<span class="badge ' + (PROVIDER_STATUS_CLS[p.status]||'muted') + '">' + p.status.replace('_',' ') + '</span>' +
+            '<button class="btn btn-secondary" style="padding:5px 10px;font-size:11px" onclick="testTrainingProvider(\'' + p.id + '\')">Test Connection</button>' +
+            '<button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;color:#ef4444" onclick="deleteTrainingProvider(\'' + p.id + '\')">Remove</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  } catch(e) {
+    document.getElementById('providers-list').innerHTML = 'Could not load providers.';
+  }
+}
+
+window.testTrainingProvider = async function(id) {
+  try {
+    var r = await fetch('/api/v1/lab/training-providers/'+id+'/test', { method:'POST', credentials:'same-origin' });
+    var body = await r.json();
+    if (!r.ok) throw new Error(body.error || 'Connection test failed');
+    _toast('✓ Connection verified');
+  } catch(e) {
+    alert('Connection test failed: ' + e.message + '\n\nThis means the credentials or config are wrong — check the values you entered, not a bug in CorverxisLab itself.');
+  }
+  renderTrainingProviders();
+};
+
+window.deleteTrainingProvider = async function(id) {
+  if (!confirm('Remove this provider connection? Any training jobs already dispatched to it will keep their externalJobId reference but you will lose the ability to check their real status from CorverxisLab.')) return;
+  try {
+    await fetch('/api/v1/lab/training-providers/'+id, { method:'DELETE', credentials:'same-origin' });
+    renderTrainingProviders();
+  } catch(e) { alert('Could not remove provider: ' + e.message); }
+};
+
+window.openConnectProvider = function() {
+  openModal('Connect a Cloud Training Provider',
+    _field('Provider','provider','select',['AWS_SAGEMAKER','GCP_VERTEX_AI','RUNPOD'], PROVIDER_LABELS) +
+    _field('Region','region','text', null, null, false, 'e.g. us-east-1 (AWS) or us-central1 (GCP) — leave blank for RunPod') +
+    '<div id="provider-cred-fields"></div>',
+    async function(payload) {
+      var credentials = {};
+      var form = document.getElementById('modal-form');
+      if (payload.provider === 'AWS_SAGEMAKER') {
+        credentials = {
+          accessKeyId: form.querySelector('[name="accessKeyId"]')?.value,
+          secretAccessKey: form.querySelector('[name="secretAccessKey"]')?.value,
+          executionRoleArn: form.querySelector('[name="executionRoleArn"]')?.value,
+          s3Bucket: form.querySelector('[name="s3Bucket"]')?.value,
+        };
+      } else if (payload.provider === 'GCP_VERTEX_AI') {
+        credentials = {
+          serviceAccountJson: form.querySelector('[name="serviceAccountJson"]')?.value,
+          projectId: form.querySelector('[name="projectId"]')?.value,
+        };
+      } else if (payload.provider === 'RUNPOD') {
+        credentials = { apiKey: form.querySelector('[name="apiKey"]')?.value };
+      }
+      await _post('/api/v1/lab/training-providers', { provider: payload.provider, region: payload.region || null, credentials: credentials });
+      renderTrainingProviders();
+    },
+    { onMount: function(form) {
+        var providerSelect = form.querySelector('select[name="provider"]');
+        var credWrap = document.getElementById('provider-cred-fields');
+        function renderCredFields() {
+          var p = providerSelect.value;
+          if (p === 'AWS_SAGEMAKER') {
+            credWrap.innerHTML =
+              _field('Access Key ID','accessKeyId','text') +
+              _field('Secret Access Key','secretAccessKey','password') +
+              _field('Execution Role ARN','executionRoleArn','text', null, null, true, 'arn:aws:iam::...:role/SageMakerExecutionRole') +
+              _field('S3 Bucket (for training output)','s3Bucket','text');
+          } else if (p === 'GCP_VERTEX_AI') {
+            credWrap.innerHTML =
+              _field('Project ID','projectId','text') +
+              '<div class="field"><label>Service Account JSON</label><textarea name="serviceAccountJson" rows="5" required placeholder="Paste the full service account key JSON"></textarea></div>';
+          } else if (p === 'RUNPOD') {
+            credWrap.innerHTML = _field('API Key','apiKey','password');
+          } else {
+            credWrap.innerHTML = '';
+          }
+        }
+        providerSelect.addEventListener('change', renderCredFields);
+        renderCredFields();
+      }
+    }
+  );
+};
+
 function renderAllProjects() {
   var el = _mainEl();
   if (!PROJECTS.length) { el.innerHTML = _noProjectState(); return; }

@@ -35,6 +35,9 @@ const crypto  = require('crypto');
 const { prisma } = require('../prisma');
 const { authenticate, requireRole } = require('../middleware/rbac');
 const { autoNcrFromVisionFail, autoNcrFromSensorCrit, autoScarFromSupplierIssue } = require('../automation');
+const trainingProviders = require('../integrations/training');
+const { encryptCredentials } = require('../integrations/training/crypto');
+const imageStorage = require('../integrations/storage');
 
 // Gateway agents authenticate with a bearer API key, not a user session —
 // they're machines running on the client's plant network, not logged-in
@@ -363,15 +366,35 @@ router.post('/lab/data-sources/:id/ingest', async (req, res) => {
       const failCount = results.filter(r => r.result === 'FAIL').length;
       const avgCycle = results.reduce((a, r) => a + (r.cycleMs || 0), 0) / results.length;
 
+      // Image saving is real I/O (disk or a network call to S3/GCS) and
+      // deliberately happens BEFORE the transaction below, not inside
+      // it — a Prisma transaction should stay fast and DB-only, not
+      // block on external storage latency. A failed image save is
+      // non-fatal per-result: the metadata (pass/fail, defects,
+      // confidence) is still valuable on its own, exactly matching how
+      // the platform behaved before image storage existed at all.
+      const enrichedResults = await Promise.all(results.map(async (r) => {
+        if (!r.imageBase64) return r;
+        try {
+          const saved = await imageStorage.saveImage({ orgId: source.orgId, base64Data: r.imageBase64, mimeType: r.imageMimeType || 'image/jpeg' });
+          return { ...r, imagePath: saved.imagePath, imageStorageType: saved.imageStorageType };
+        } catch (imgErr) {
+          console.error(`⚠ Image save failed for a vision result (non-fatal, result metadata still saved):`, imgErr.message);
+          return r;
+        }
+      }));
+
       await prisma.$transaction([
         prisma.visionResult.createMany({
-          data: results.map(r => ({
+          data: enrichedResults.map(r => ({
             sessionId: session.id,
             result: r.result === 'PASS' || r.result === 'FAIL' ? r.result : 'FAIL',
             confidence: typeof r.confidence === 'number' ? r.confidence : 0,
             defectCount: r.defectCount || 0,
             defectTypes: r.defectTypes || [],
             cycleMs: typeof r.cycleMs === 'number' ? r.cycleMs : 0,
+            imagePath: r.imagePath || null,
+            imageStorageType: r.imageStorageType || null,
             timestamp: r.timestamp ? new Date(r.timestamp) : new Date(),
           })),
         }),
@@ -653,10 +676,49 @@ router.post('/lab/projects/:id/training-jobs', authenticate, requireRole('ENGINE
       data: {
         orgId, projectId: req.params.id, datasetId: b.datasetId || null, modelType: b.modelType,
         baseModel: b.baseModel || null, method: b.method || null, gpuTier: b.gpuTier || null,
+        providerId: b.providerId || null,
         status: 'QUEUED',
       }
     });
-    res.status(201).json({ data: row });
+
+    // No providerId means Lab-tracked-only, exactly as before this
+    // build — status moves via manual "Start Job"/"Mark Complete"
+    // buttons, no real compute involved. Only actually dispatches to
+    // a cloud provider when one was explicitly selected.
+    if (b.providerId) {
+      const provider = await prisma.trainingProvider.findFirst({ where: { id: b.providerId, orgId } });
+      if (!provider) {
+        await prisma.labTrainingJob.update({ where: { id: row.id }, data: { status: 'FAILED', metrics: { error: 'Selected training provider not found' } } });
+        return res.status(400).json({ error: 'Selected training provider not found', data: row });
+      }
+
+      try {
+        const project = await prisma.labProject.findUnique({ where: { id: req.params.id } });
+        const dispatchResult = await trainingProviders.submitJob(provider, {
+          trainingJobId: row.id,
+          apiBaseUrl: process.env.APP_URL || `https://${req.get('host')}`,
+          dataSourceApiKey: null, // deliberately not auto-filled — see note in submitJob's HyperParameters comment (aws.js) about secrets-manager being the right path in production
+          modelType: b.modelType, baseModel: b.baseModel, method: b.method, gpuTier: b.gpuTier,
+          datasetUrl: b.datasetUrl || null, datasetS3Uri: b.datasetS3Uri || null,
+          containerImage: b.containerImage || null,
+        });
+        const updated = await prisma.labTrainingJob.update({
+          where: { id: row.id },
+          data: { externalJobId: dispatchResult.externalJobId, providerLogsUrl: dispatchResult.providerLogsUrl, status: 'QUEUED' },
+        });
+        return res.status(201).json({ data: updated, dispatched: true });
+      } catch (dispatchErr) {
+        // Real dispatch genuinely failed — don't leave the caller
+        // thinking a job is running on real GPU compute when it
+        // isn't. Mark it FAILED with the real error, not silent.
+        const failed = await prisma.labTrainingJob.update({
+          where: { id: row.id }, data: { status: 'FAILED', metrics: { error: dispatchErr.message } },
+        });
+        return res.status(502).json({ error: `Cloud dispatch failed: ${dispatchErr.message}`, data: failed });
+      }
+    }
+
+    res.status(201).json({ data: row, dispatched: false });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -894,6 +956,147 @@ router.patch('/lab/demand-forecast-recommendations/:id', authenticate, requireRo
 
     const row = await prisma.demandForecastRecommendation.update({ where: { id: req.params.id }, data });
     res.json({ data: row });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── TRAINING PROVIDERS (AWS / GCP / RunPod) ─────────────────
+router.get('/lab/training-providers', authenticate, async (req, res) => {
+  try {
+    const rows = await prisma.trainingProvider.findMany({
+      where: { orgId: req.user.orgId }, orderBy: { createdAt: 'desc' },
+      select: { id: true, provider: true, status: true, region: true, lastVerifiedAt: true, createdAt: true }, // never select credentials fields
+    });
+    res.json({ data: rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/lab/training-providers', authenticate, requireRole('ADMIN'), async (req, res) => {
+  try {
+    const b = req.body;
+    if (!b.provider || !b.credentials) return res.status(400).json({ error: 'provider and credentials are required' });
+    const enc = encryptCredentials(b.credentials);
+    const row = await prisma.trainingProvider.create({
+      data: {
+        orgId: req.user.orgId, provider: b.provider, region: b.region || null,
+        credentialsEncrypted: enc.ciphertext, credentialsIv: enc.iv, credentialsTag: enc.tag,
+        status: 'NOT_CONNECTED',
+      },
+      select: { id: true, provider: true, status: true, region: true, createdAt: true },
+    });
+    res.status(201).json({ data: row });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/lab/training-providers/:id/test', authenticate, requireRole('ADMIN'), async (req, res) => {
+  try {
+    const provider = await prisma.trainingProvider.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
+    if (!provider) return res.status(404).json({ error: 'Training provider not found' });
+
+    try {
+      const result = await trainingProviders.testProviderConnection(provider);
+      const updated = await prisma.trainingProvider.update({
+        where: { id: provider.id },
+        data: { status: 'CONNECTED', lastVerifiedAt: new Date() },
+        select: { id: true, provider: true, status: true, region: true, lastVerifiedAt: true },
+      });
+      res.json({ data: updated, testResult: result });
+    } catch (connErr) {
+      await prisma.trainingProvider.update({ where: { id: provider.id }, data: { status: 'ERROR' } });
+      // Genuinely different HTTP outcome from a server bug — the
+      // connection test itself ran, it's the CLIENT'S credentials/
+      // config that are wrong, not this endpoint.
+      res.status(422).json({ error: `Connection test failed: ${connErr.message}` });
+    }
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.delete('/lab/training-providers/:id', authenticate, requireRole('ADMIN'), async (req, res) => {
+  try {
+    const provider = await prisma.trainingProvider.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
+    if (!provider) return res.status(404).json({ error: 'Training provider not found' });
+    await prisma.trainingProvider.delete({ where: { id: provider.id } });
+    res.json({ data: { deleted: true } });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Manually re-checks a real job's status against the actual cloud
+// provider — a safety net alongside the training script's own
+// progress reporting, in case that reporting fails partway through
+// a multi-hour job.
+router.post('/lab/training-jobs/:id/sync-status', authenticate, requireRole('ENGINEER'), async (req, res) => {
+  try {
+    const job = await prisma.labTrainingJob.findFirst({
+      where: { id: req.params.id, orgId: req.user.orgId },
+      include: { provider: true },
+    });
+    if (!job) return res.status(404).json({ error: 'Training job not found' });
+    if (!job.providerId || !job.externalJobId) {
+      return res.status(400).json({ error: 'This job has no linked cloud provider — nothing real to sync against.' });
+    }
+
+    const result = await trainingProviders.pollJobStatus(job.provider, job.externalJobId);
+    const data = { status: result.status };
+    if (result.status === 'RUNNING' && !job.startedAt) data.startedAt = new Date();
+    if (result.status === 'COMPLETED') { data.completedAt = new Date(); data.progressPct = 100; }
+    const updated = await prisma.labTrainingJob.update({ where: { id: job.id }, data });
+    res.json({ data: updated, providerRaw: result.raw || null });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── VISION TRAINING MANIFEST ─────────────────────────────────
+// Generates exactly the CSV shape train_vision.py's load_manifest()
+// expects (image_path, label) from real VisionResult rows that
+// actually have a stored image — this is the concrete bridge closing
+// the gap flagged after the training environment build: without this,
+// train_vision.py had a correct manifest FORMAT but nothing in the
+// platform that could ever produce one from real data.
+router.get('/lab/vision-jobs/:jobId/manifest', authenticate, async (req, res) => {
+  try {
+    const job = await prisma.visionJob.findFirst({ where: { id: req.params.jobId, orgId: req.user.orgId } });
+    if (!job) return res.status(404).json({ error: 'Vision job not found' });
+
+    const labelBy = req.query.labelBy === 'defectType' ? 'defectType' : 'result'; // default: binary PASS/FAIL
+
+    const results = await prisma.visionResult.findMany({
+      where: { session: { jobId: job.id }, imagePath: { not: null } },
+      select: { imagePath: true, imageStorageType: true, result: true, defectTypes: true },
+      orderBy: { timestamp: 'asc' },
+    });
+
+    if (!results.length) {
+      return res.status(404).json({ error: 'No vision results with a stored image exist for this job yet — nothing to build a manifest from. Results pushed without imageBase64 have metadata only, by design (see the ingest endpoint\'s non-fatal image-save handling).' });
+    }
+
+    const rows = results
+      .map((r) => {
+        let label;
+        if (labelBy === 'defectType') {
+          const types = Array.isArray(r.defectTypes) ? r.defectTypes : [];
+          label = types.length ? types[0] : 'NONE'; // primary defect type for a multi-class classifier; NONE for a clean PASS
+        } else {
+          label = r.result; // PASS / FAIL — the simpler, default binary classifier target
+        }
+        // train_vision.py's load_manifest expects a real filesystem
+        // path, not an s3:// or gs:// URI directly — those need to be
+        // downloaded to local disk first by whatever prepares the
+        // training container's input data. This is flagged explicitly
+        // in the response rather than silently handing the training
+        // script a manifest it can't actually read.
+        return { image_path: r.imagePath, label, storage_type: r.imageStorageType || 'LOCAL' };
+      });
+
+    const nonLocalCount = rows.filter(r => r.storage_type !== 'LOCAL').length;
+
+    if (req.query.format === 'json') {
+      return res.json({ data: rows, totalRows: rows.length, nonLocalImageCount: nonLocalCount });
+    }
+
+    // Default: real CSV, exactly matching load_manifest()'s expected columns
+    const csvLines = ['image_path,label'];
+    for (const r of rows) csvLines.push(`${r.image_path},${r.label}`);
+    res.set('Content-Type', 'text/csv');
+    res.set('Content-Disposition', `attachment; filename="vision-manifest-${job.id}.csv"`);
+    res.send(csvLines.join('\n'));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

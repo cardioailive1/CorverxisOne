@@ -51,6 +51,7 @@ model Org {
   visionJobs     VisionJob[]
   goldenBatchRecommendations    GoldenBatchRecommendation[]
   demandForecastRecommendations DemandForecastRecommendation[]
+  trainingProviders TrainingProvider[]
 
   @@map("orgs")
 }
@@ -274,6 +275,8 @@ model VisionResult {
   defectCount Int           @default(0)
   defectTypes Json          @default("[]")
   cycleMs     Float
+  imagePath   String?       // where the actual inspected image lives — a local relative path, or a full s3://, gs://, or https:// URL, depending on imageStorageType. Null means no image was captured for this result (metadata-only, the platform's original behavior).
+  imageStorageType String?  // LOCAL | S3 | GCS — how to interpret imagePath
   timestamp   DateTime      @default(now())
 
   @@index([sessionId, timestamp])
@@ -1420,6 +1423,11 @@ model LabTrainingJob {
   baseModel    String?  // e.g. "Qwen 3.5 9B", "EKF Ensemble", "ResNet-50"
   method       String?  // e.g. "LoRA", "QLoRA", "Full Fine-Tune", "Random Forest"
   gpuTier      String?  // e.g. "Flash — Single GPU", "Pro — H100 80GB"
+  providerId   String?  // which real cloud account this job actually ran on — null means Lab-tracked only, no real compute dispatched
+  provider     TrainingProvider? @relation(fields: [providerId], references: [id])
+  externalJobId String? // the cloud provider's own job/pod ID — SageMaker TrainingJobName, Vertex AI CustomJob resource name, or RunPod pod ID
+  providerLogsUrl String? // direct link to the provider's console/logs for this job
+  estimatedCostUsd Float? // computed at submission from GPU tier × estimated duration — directional, not billed truth
   status       LabTrainingJobStatus @default(QUEUED)
   progressPct  Float    @default(0)
   metrics      Json?    // { accuracy, loss, f1, rul_mae, ... }
@@ -1611,4 +1619,44 @@ enum DemandForecastStatus {
   PENDING_REVIEW  // surfaced, buyer hasn't acted on it
   ACCEPTED        // buyer confirmed — reflect this in the item's real reorderPoint/safetyStock manually, this record does not do it for them
   OVERRIDDEN      // buyer reviewed and chose different values, noted why
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Training Providers — connects an org's real AWS / GCP / RunPod
+//  account so training jobs can actually run on rented GPU compute
+//  instead of only being tracked in the Lab. Credentials are
+//  encrypted at rest using the same AES-256-GCM pattern already
+//  used for payroll provider credentials (src/integrations/payroll/crypto.js).
+// ══════════════════════════════════════════════════════════════
+
+model TrainingProvider {
+  id                String   @id @default(cuid())
+  orgId             String
+  org               Org      @relation(fields: [orgId], references: [id])
+  provider          TrainingProviderType
+  status            TrainingProviderStatus @default(NOT_CONNECTED)
+  region            String?  // e.g. "us-east-1" (AWS), "us-central1" (GCP), n/a for RunPod
+  credentialsEncrypted String? @db.Text // AES-256-GCM ciphertext — never plaintext at rest
+  credentialsIv     String?  // GCM IV, stored alongside the ciphertext
+  credentialsTag    String?  // GCM auth tag
+  lastVerifiedAt    DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  trainingJobs      LabTrainingJob[]
+
+  @@index([orgId])
+  @@map("training_providers")
+}
+
+enum TrainingProviderType {
+  AWS_SAGEMAKER
+  GCP_VERTEX_AI
+  RUNPOD
+}
+
+enum TrainingProviderStatus {
+  NOT_CONNECTED
+  CONNECTED
+  ERROR
 }
