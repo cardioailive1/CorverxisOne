@@ -95,6 +95,7 @@ tr:last-child td{border-bottom:none}
     <div class="nav-section-label">Org Settings</div>
     <div class="nav-item" data-tab="orgsettings" onclick="showTab('orgsettings')"><span class="nav-icon">⚙</span>Active Verticals</div>
     <div class="nav-item" data-tab="trainingproviders" onclick="showTab('trainingproviders')"><span class="nav-icon">☁</span>Cloud Training</div>
+    <div class="nav-item" data-tab="notebooks" onclick="showTab('notebooks')"><span class="nav-icon">📓</span>Notebooks</div>
 
     <div class="sidebar-footer">
       <div id="lab-live-badge" style="color:#f59e0b">CONNECTING…</div>
@@ -213,7 +214,7 @@ window.showTab = function(tab) {
   var renderers = {
     overview: renderOverview, onboarding: renderOnboarding, infra: renderInfra,
     datasets: renderDatasets, training: renderTraining, models: renderModels,
-    allprojects: renderAllProjects, orgsettings: renderOrgSettings, trainingproviders: renderTrainingProviders,
+    allprojects: renderAllProjects, orgsettings: renderOrgSettings, trainingproviders: renderTrainingProviders, notebooks: renderNotebooks,
   };
   (renderers[tab] || renderOverview)();
 };
@@ -666,10 +667,68 @@ function renderTraining() {
         (j.status==='RUNNING' ? '<div class="progress-bar"><div class="progress-fill" style="width:'+j.progressPct+'%"></div></div><div style="font-size:10px;color:var(--muted);margin-top:4px">'+j.progressPct+'% complete</div>' : '') +
         (metrics ? '<div style="font-size:10.5px;color:var(--text2);margin-top:8px">'+metrics+'</div>' : '') +
         (j.status==='QUEUED' ? '<button class="btn btn-secondary" style="margin-top:10px;padding:5px 12px;font-size:10.5px" onclick="advanceJob(\''+j.id+'\',\'RUNNING\')">Start Job</button>' : '') +
+        (j.status==='QUEUED' && !j.computeInstance ? '<button class="btn btn-secondary" style="margin-top:10px;margin-left:6px;padding:5px 12px;font-size:10.5px;color:#00c2e0" onclick="openLaunchOnCompute(\''+j.id+'\')">⚡ Launch on Raw A100</button>' : '') +
+        (j.computeInstance ? '<div style="margin-top:8px;font-size:10px;color:var(--muted)">Running on '+(j.computeInstance.instanceType||'')+' ('+(j.computeInstance.gpuType||'')+') · <span class="badge '+(j.computeInstance.status==='RUNNING'?'ok':j.computeInstance.status==='ERROR'?'err':'warn')+'" style="font-size:9px">'+j.computeInstance.status+'</span></div>' : '') +
         (j.status==='RUNNING' ? '<button class="btn btn-secondary" style="margin-top:10px;padding:5px 12px;font-size:10.5px" onclick="advanceJob(\''+j.id+'\',\'COMPLETED\')">Mark Complete</button>' : '') +
       '</div>';
     }).join('') : '<div class="card" style="text-align:center;color:var(--muted)">No training jobs yet. Launch one against a registered dataset.</div>');
 }
+var A100_INSTANCE_OPTIONS = {
+  AWS_EC2_RAW: [
+    { value: 'p4d.24xlarge', label: 'p4d.24xlarge — 8× A100 40GB (~$32.77/hr)' },
+    { value: 'p4de.24xlarge', label: 'p4de.24xlarge — 8× A100 80GB (~$40.96/hr)' },
+  ],
+  GCP_COMPUTE_RAW: [
+    { value: 'a2-highgpu-1g', label: 'a2-highgpu-1g — 1× A100 40GB (~$3.67/hr)' },
+    { value: 'a2-highgpu-2g', label: 'a2-highgpu-2g — 2× A100 40GB (~$7.35/hr)' },
+    { value: 'a2-highgpu-4g', label: 'a2-highgpu-4g — 4× A100 40GB (~$14.69/hr)' },
+    { value: 'a2-highgpu-8g', label: 'a2-highgpu-8g — 8× A100 40GB (~$29.39/hr)' },
+    { value: 'a2-ultragpu-1g', label: 'a2-ultragpu-1g — 1× A100 80GB (~$5.03/hr)' },
+    { value: 'a2-ultragpu-8g', label: 'a2-ultragpu-8g — 8× A100 80GB (~$40.22/hr)' },
+  ],
+};
+
+window.openLaunchOnCompute = async function(jobId) {
+  var providers = [];
+  try {
+    var r = await fetch('/api/v1/lab/training-providers', { credentials:'same-origin' });
+    if (r.ok) providers = ((await r.json()).data || []).filter(function(p){ return p.status === 'CONNECTED' && RAW_COMPUTE_TYPES.indexOf(p.provider) !== -1; });
+  } catch(e) {}
+
+  if (!providers.length) {
+    openModal('Launch on Raw A100 Compute',
+      '<div style="font-size:12px;color:var(--muted);padding:10px 0">No connected raw-compute providers (AWS EC2 or GCP Compute Engine) yet. <a href="#" onclick="document.getElementById(\'modal-overlay\').remove();openConnectProvider();return false" style="color:#00c2e0">Connect one</a> first — this is separate from a SageMaker/Vertex AI/RunPod connection, since it provisions raw instances CorverxisLab orchestrates directly.</div>',
+      async function(){ /* no-op, this modal has no real submit path */ },
+      { }
+    );
+    return;
+  }
+
+  openModal('Launch on Raw A100 Compute',
+    _field('Provider','providerId','select', providers.map(function(p){return p.id;}), providers.reduce(function(a,p){a[p.id]=PROVIDER_LABELS[p.provider]+(p.region?' — '+p.region:'');return a;},{})) +
+    '<div id="a100-instance-type-wrap"></div>' +
+    '<div style="font-size:10.5px;color:#f59e0b;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:6px;padding:8px 10px;margin-top:4px">⚠ This provisions a real, billed GPU instance immediately on submit. Remember to terminate it from the instance list when the job finishes if it doesn\'t self-terminate.</div>',
+    async function(payload) {
+      var result = await _post('/api/v1/lab/training-jobs/'+jobId+'/launch-on-compute', { providerId: payload.providerId, instanceType: payload.instanceType });
+      await loadCurrentProject();
+      renderTraining();
+      _toast('✓ A100 instance launching — ' + (result.data.gpuCount||'') + '× ' + (result.data.gpuType||''));
+    },
+    { onMount: function(form) {
+        var providerSelect = form.querySelector('select[name="providerId"]');
+        var wrap = document.getElementById('a100-instance-type-wrap');
+        function renderInstanceOptions() {
+          var selectedProvider = providers.find(function(p){ return p.id === providerSelect.value; });
+          var opts = selectedProvider ? (A100_INSTANCE_OPTIONS[selectedProvider.provider] || []) : [];
+          wrap.innerHTML = _field('Instance Type','instanceType','select', opts.map(function(o){return o.value;}), opts.reduce(function(a,o){a[o.value]=o.label;return a;},{}));
+        }
+        providerSelect.addEventListener('change', renderInstanceOptions);
+        renderInstanceOptions();
+      }
+    }
+  );
+};
+
 window.advanceJob = async function(id, status) {
   try {
     var payload = { status: status };
@@ -691,6 +750,7 @@ window.openLaunchJob = async function() {
 
   openModal('Launch Training Job',
     _field('Model type','modelType','select',['CLASSICAL_ML','TIME_SERIES','VISION','LLM'], MODELTYPE_LABELS) +
+    '<div id="library-picker-wrap"></div>' +
     _field('Base model / architecture','baseModel','text', null, null, false, 'e.g. ResNet-50, LSTM, Qwen 3.5 9B') +
     _field('Method','method','text', null, null, false, 'e.g. LoRA, Transfer Learning, Ensemble Fit') +
     _field('GPU tier','gpuTier','select',['CPU Cluster','Flash — Single GPU','Pro — H100 80GB','Ultra — 8× H100'], null, false) +
@@ -706,6 +766,42 @@ window.openLaunchJob = async function() {
       await loadCurrentProject();
       renderTraining();
       if (result.dispatched) _toast('✓ Dispatched to real GPU compute — job ID: ' + (result.data.externalJobId||'').slice(0,16));
+    },
+    { onMount: function(form) {
+        var modelTypeSelect = form.querySelector('select[name="modelType"]');
+        var libWrap = document.getElementById('library-picker-wrap');
+        var baseModelInput = form.querySelector('input[name="baseModel"]');
+        var methodInput = form.querySelector('input[name="method"]');
+
+        async function loadLibraryForType() {
+          libWrap.innerHTML = '<div style="font-size:10.5px;color:var(--muted);padding:4px 0">Loading library...</div>';
+          try {
+            var r = await fetch('/api/v1/lab/training-library?modelType=' + encodeURIComponent(modelTypeSelect.value), { credentials:'same-origin' });
+            var entries = r.ok ? (await r.json()).data : [];
+            if (!entries.length) { libWrap.innerHTML = ''; return; }
+            var STATUS_BADGE = { TESTED: '<span class="badge ok" style="font-size:9px">TESTED</span>', REFERENCE_ONLY: '<span class="badge warn" style="font-size:9px">REFERENCE ONLY — not executed end-to-end</span>' };
+            libWrap.innerHTML = '<div class="field"><label>Start from a library script (optional)</label>' +
+              '<select id="library-select"><option value="">— write in freeform below —</option>' +
+              entries.map(function(e){ return '<option value="'+e.id+'">'+e.name+'</option>'; }).join('') +
+              '</select></div>' +
+              '<div id="library-detail" style="display:none;font-size:10.5px;color:var(--text2);background:rgba(255,255,255,.03);border-radius:6px;padding:8px 10px;margin-bottom:10px"></div>';
+
+            var select = document.getElementById('library-select');
+            var detail = document.getElementById('library-detail');
+            select.addEventListener('change', function() {
+              var entry = entries.find(function(e){ return e.id === select.value; });
+              if (!entry) { detail.style.display = 'none'; return; }
+              baseModelInput.value = entry.exampleBaseModel || '';
+              methodInput.value = entry.scriptPath;
+              detail.style.display = 'block';
+              detail.innerHTML = STATUS_BADGE[entry.verifiedStatus] + '<div style="margin-top:6px">' + entry.description + '</div>' +
+                '<div style="margin-top:6px;color:var(--muted)">Requires: ' + entry.requiredPackages.join(', ') + '</div>';
+            });
+          } catch(e) { libWrap.innerHTML = ''; }
+        }
+        modelTypeSelect.addEventListener('change', loadLibraryForType);
+        loadLibraryForType();
+      }
     }
   );
 };
@@ -832,8 +928,89 @@ window.openAddModel = function() {
 
 // ── All Projects (cross-pilot view) ─────────────────────────
 // ── Cloud Training Providers (AWS / GCP / RunPod) ──────────
-var PROVIDER_LABELS = { AWS_SAGEMAKER: 'AWS SageMaker', GCP_VERTEX_AI: 'GCP Vertex AI', RUNPOD: 'RunPod' };
+var PROVIDER_LABELS = { AWS_SAGEMAKER: 'AWS SageMaker', GCP_VERTEX_AI: 'GCP Vertex AI', RUNPOD: 'RunPod', AWS_EC2_RAW: 'AWS EC2 — Raw A100 (own orchestrator)', GCP_COMPUTE_RAW: 'GCP Compute Engine — Raw A100 (own orchestrator)' };
+var RAW_COMPUTE_TYPES = ['AWS_EC2_RAW', 'GCP_COMPUTE_RAW'];
 var PROVIDER_STATUS_CLS = { CONNECTED: 'ok', NOT_CONNECTED: 'muted', ERROR: 'err' };
+
+// ── Notebooks (real JupyterLab on provisioned A100 compute) ──
+var NOTEBOOK_STATUS_CLS = { PROVISIONING:'warn', BOOTING:'warn', RUNNING:'ok', TERMINATING:'muted', TERMINATED:'muted', ERROR:'err' };
+
+async function renderNotebooks() {
+  var el = _mainEl();
+  el.innerHTML = '<div class="pt">Notebooks</div>' +
+    '<div class="ps">Real JupyterLab servers on provisioned A100 compute — for interactive exploration, not a full training run. Requires a connected raw-compute provider (AWS EC2 or GCP Compute Engine).</div>' +
+    '<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn btn-primary" onclick="openLaunchNotebook()">+ Launch Notebook</button></div>' +
+    '<div id="notebooks-list"><div style="text-align:center;padding:30px;color:var(--muted)">Loading...</div></div>';
+
+  try {
+    var r = await fetch('/api/v1/lab/notebooks', { credentials:'same-origin' });
+    var notebooks = r.ok ? (await r.json()).data : [];
+    var listEl = document.getElementById('notebooks-list');
+    if (!notebooks.length) {
+      listEl.innerHTML = '<div class="card" style="text-align:center;padding:30px;color:var(--muted)">No notebooks launched yet.</div>';
+      return;
+    }
+    listEl.innerHTML = notebooks.map(function(n) {
+      return '<div class="card" style="margin-bottom:10px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+          '<div><div style="font-size:13px;font-weight:700;color:#e2e8f0">' + n.instanceType + ' — ' + n.gpuCount + '× ' + n.gpuType + '</div>' +
+          '<div style="font-size:10.5px;color:var(--muted)">' + (n.provider ? PROVIDER_LABELS[n.provider.provider] : '') + ' · $' + (n.costPerHourUsd||0).toFixed(2) + '/hr · launched ' + (n.launchedAt ? new Date(n.launchedAt).toLocaleString() : '—') + '</div></div>' +
+          '<span class="badge ' + (NOTEBOOK_STATUS_CLS[n.status]||'muted') + '">' + n.status + '</span>' +
+        '</div>' +
+        (n.accessUrl
+          ? '<a href="'+n.accessUrl+'" target="_blank" class="btn btn-primary" style="display:inline-block;padding:6px 14px;font-size:11px;text-decoration:none">Open JupyterLab →</a>'
+          : '<div style="font-size:10.5px;color:var(--muted)">Not reachable yet — still provisioning. Refresh in a minute.</div>') +
+        '<button class="btn btn-secondary" style="padding:6px 14px;font-size:11px;margin-left:8px" onclick="terminateNotebook(\''+n.id+'\')">Terminate</button>' +
+      '</div>';
+    }).join('');
+  } catch(e) {
+    document.getElementById('notebooks-list').innerHTML = 'Could not load notebooks.';
+  }
+}
+
+window.terminateNotebook = async function(id) {
+  if (!confirm('Terminate this notebook? Unsaved work in it will be lost.')) return;
+  try {
+    await fetch('/api/v1/lab/compute-instances/'+id+'/terminate', { method:'POST', credentials:'same-origin' });
+    renderNotebooks();
+  } catch(e) { alert('Could not terminate: ' + e.message); }
+};
+
+window.openLaunchNotebook = async function() {
+  var providers = [];
+  try {
+    var r = await fetch('/api/v1/lab/training-providers', { credentials:'same-origin' });
+    if (r.ok) providers = ((await r.json()).data || []).filter(function(p){ return p.status === 'CONNECTED' && RAW_COMPUTE_TYPES.indexOf(p.provider) !== -1; });
+  } catch(e) {}
+
+  if (!providers.length) {
+    alert('No connected raw-compute providers yet. Connect an AWS EC2 or GCP Compute Engine provider from Cloud Training first.');
+    return;
+  }
+
+  openModal('Launch Notebook',
+    _field('Provider','providerId','select', providers.map(function(p){return p.id;}), providers.reduce(function(a,p){a[p.id]=PROVIDER_LABELS[p.provider]+(p.region?' — '+p.region:'');return a;},{})) +
+    '<div id="nb-instance-type-wrap"></div>' +
+    '<div style="font-size:10.5px;color:#f59e0b;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:6px;padding:8px 10px;margin-top:4px">⚠ This provisions a real, billed GPU instance immediately and leaves it running until you terminate it — a notebook does not self-terminate the way a training job does.</div>',
+    async function(payload) {
+      var result = await _post('/api/v1/lab/notebooks', { providerId: payload.providerId, instanceType: payload.instanceType });
+      renderNotebooks();
+      _toast('✓ Notebook launching — check the list in a minute for the access link');
+    },
+    { onMount: function(form) {
+        var providerSelect = form.querySelector('select[name="providerId"]');
+        var wrap = document.getElementById('nb-instance-type-wrap');
+        function renderInstanceOptions() {
+          var selectedProvider = providers.find(function(p){ return p.id === providerSelect.value; });
+          var opts = selectedProvider ? (A100_INSTANCE_OPTIONS[selectedProvider.provider] || []) : [];
+          wrap.innerHTML = _field('Instance Type','instanceType','select', opts.map(function(o){return o.value;}), opts.reduce(function(a,o){a[o.value]=o.label;return a;},{}));
+        }
+        providerSelect.addEventListener('change', renderInstanceOptions);
+        renderInstanceOptions();
+      }
+    }
+  );
+};
 
 async function renderTrainingProviders() {
   var el = _mainEl();
@@ -890,7 +1067,7 @@ window.deleteTrainingProvider = async function(id) {
 
 window.openConnectProvider = function() {
   openModal('Connect a Cloud Training Provider',
-    _field('Provider','provider','select',['AWS_SAGEMAKER','GCP_VERTEX_AI','RUNPOD'], PROVIDER_LABELS) +
+    _field('Provider','provider','select',['AWS_SAGEMAKER','GCP_VERTEX_AI','RUNPOD','AWS_EC2_RAW','GCP_COMPUTE_RAW'], PROVIDER_LABELS) +
     _field('Region','region','text', null, null, false, 'e.g. us-east-1 (AWS) or us-central1 (GCP) — leave blank for RunPod') +
     '<div id="provider-cred-fields"></div>',
     async function(payload) {
@@ -910,6 +1087,19 @@ window.openConnectProvider = function() {
         };
       } else if (payload.provider === 'RUNPOD') {
         credentials = { apiKey: form.querySelector('[name="apiKey"]')?.value };
+      } else if (payload.provider === 'AWS_EC2_RAW') {
+        credentials = {
+          accessKeyId: form.querySelector('[name="accessKeyId"]')?.value,
+          secretAccessKey: form.querySelector('[name="secretAccessKey"]')?.value,
+          keyPairName: form.querySelector('[name="keyPairName"]')?.value || null,
+          securityGroupId: form.querySelector('[name="securityGroupId"]')?.value || null,
+          subnetId: form.querySelector('[name="subnetId"]')?.value || null,
+        };
+      } else if (payload.provider === 'GCP_COMPUTE_RAW') {
+        credentials = {
+          projectId: form.querySelector('[name="projectId"]')?.value,
+          serviceAccountJson: form.querySelector('[name="serviceAccountJson"]')?.value,
+        };
       }
       await _post('/api/v1/lab/training-providers', { provider: payload.provider, region: payload.region || null, credentials: credentials });
       renderTrainingProviders();
@@ -931,6 +1121,19 @@ window.openConnectProvider = function() {
               '<div class="field"><label>Service Account JSON</label><textarea name="serviceAccountJson" rows="5" required placeholder="Paste the full service account key JSON"></textarea></div>';
           } else if (p === 'RUNPOD') {
             credWrap.innerHTML = _field('API Key','apiKey','password');
+          } else if (p === 'AWS_EC2_RAW') {
+            credWrap.innerHTML =
+              '<div style="font-size:10.5px;color:var(--muted);margin-bottom:10px">This provisions raw p4d/p4de A100 instances directly via EC2 — CorverxisLab runs its own orchestrator on top, not SageMaker\'s managed training API.</div>' +
+              _field('Access Key ID','accessKeyId','text') +
+              _field('Secret Access Key','secretAccessKey','password') +
+              _field('EC2 Key Pair Name','keyPairName','text', null, null, false, 'for SSH access if needed — optional') +
+              _field('Security Group ID','securityGroupId','text', null, null, false, 'sg-xxxxxxxx') +
+              _field('Subnet ID','subnetId','text', null, null, false, 'subnet-xxxxxxxx — leave blank to use the account default VPC');
+          } else if (p === 'GCP_COMPUTE_RAW') {
+            credWrap.innerHTML =
+              '<div style="font-size:10.5px;color:var(--muted);margin-bottom:10px">This provisions raw a2-series A100 instances directly via Compute Engine — CorverxisLab runs its own orchestrator on top, not Vertex AI\'s managed training API.</div>' +
+              _field('Project ID','projectId','text') +
+              '<div class="field"><label>Service Account JSON</label><textarea name="serviceAccountJson" rows="5" required placeholder="Paste the full service account key JSON — needs Compute Engine Admin role"></textarea></div>';
           } else {
             credWrap.innerHTML = '';
           }

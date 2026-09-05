@@ -190,7 +190,7 @@ router.get('/lab/projects/:id', authenticate, async (req, res) => {
         dataSources: { orderBy: { createdAt: 'desc' } },
         pipelines: { orderBy: { createdAt: 'desc' } },
         datasets: { orderBy: { createdAt: 'desc' } },
-        trainingJobs: { orderBy: { createdAt: 'desc' }, include: { dataset: { select: { name: true, version: true } } } },
+        trainingJobs: { orderBy: { createdAt: 'desc' }, include: { dataset: { select: { name: true, version: true } }, computeInstance: true } },
         models: {
           orderBy: { createdAt: 'desc' },
           include: {
@@ -1106,6 +1106,49 @@ router.get('/lab/vision-jobs/:jobId/manifest', authenticate, async (req, res) =>
 // hands a job to SageMaker/Vertex AI/RunPod's OWN scheduler. This one
 // provisions a raw GPU VM directly and this platform's own code drives
 // the whole lifecycle: launch, wait for boot, poll, terminate.
+// Queues a job for the scheduler to launch when fleet capacity allows,
+// rather than launching immediately — this is the real queue: a
+// ComputeInstance placeholder row (no externalInstanceId yet) that
+// scheduler.js's processOrgQueue() picks up on its next cycle, respecting
+// Org.maxConcurrentInstances. Use this instead of launch-on-compute when
+// you want the fleet cap enforced rather than launching unconditionally.
+router.post('/lab/training-jobs/:id/queue-on-compute', authenticate, requireRole('ENGINEER'), async (req, res) => {
+  try {
+    const job = await prisma.labTrainingJob.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
+    if (!job) return res.status(404).json({ error: 'Training job not found' });
+
+    const { providerId, instanceType } = req.body;
+    if (!providerId || !instanceType) return res.status(400).json({ error: 'providerId and instanceType are required' });
+
+    const provider = await prisma.trainingProvider.findFirst({ where: { id: providerId, orgId: req.user.orgId } });
+    if (!provider) return res.status(404).json({ error: 'Compute provider not found' });
+    if (!['AWS_EC2_RAW', 'GCP_COMPUTE_RAW'].includes(provider.provider)) {
+      return res.status(400).json({ error: 'That provider is a managed training service, not a raw compute provider.' });
+    }
+
+    // findAwsInstance/findGcpInstance's allowlist check happens for
+    // real at launch time in the connector — validated again here so a
+    // bad instanceType is rejected immediately, not discovered a
+    // scheduler cycle later.
+    const catalog = require('../integrations/compute/a100-catalog');
+    try {
+      if (provider.provider === 'AWS_EC2_RAW') catalog.findAwsInstance(instanceType);
+      else catalog.findGcpInstance(instanceType);
+    } catch (catalogErr) {
+      return res.status(400).json({ error: catalogErr.message });
+    }
+
+    const placeholder = await prisma.computeInstance.create({
+      data: {
+        orgId: req.user.orgId, providerId: provider.id, trainingJobId: job.id,
+        instanceType, gpuType: 'PENDING', gpuCount: 0, // real values filled in once the scheduler actually launches it
+        status: 'PROVISIONING', externalInstanceId: null,
+      },
+    });
+    res.status(201).json({ data: placeholder, message: 'Queued — the scheduler checks fleet capacity every few minutes and will launch this automatically.' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.post('/lab/training-jobs/:id/launch-on-compute', authenticate, requireRole('ENGINEER'), async (req, res) => {
   try {
     const job = await prisma.labTrainingJob.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
@@ -1217,6 +1260,93 @@ router.post('/lab/compute-instances/enforce-idle-timeout', authenticate, require
       }
     }
     res.json({ data: { checked: stale.length, terminated } });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── NOTEBOOKS (real JupyterLab on provisioned A100 compute) ──────
+router.post('/lab/notebooks', authenticate, requireRole('ENGINEER'), async (req, res) => {
+  try {
+    const { providerId, instanceType, name } = req.body;
+    if (!providerId || !instanceType) return res.status(400).json({ error: 'providerId and instanceType are required' });
+
+    const provider = await prisma.trainingProvider.findFirst({ where: { id: providerId, orgId: req.user.orgId } });
+    if (!provider) return res.status(404).json({ error: 'Compute provider not found' });
+    if (!['AWS_EC2_RAW', 'GCP_COMPUTE_RAW'].includes(provider.provider)) {
+      return res.status(400).json({ error: 'Notebooks require a raw compute provider (AWS EC2 or GCP Compute Engine), not a managed training service.' });
+    }
+
+    const catalog = require('../integrations/compute/a100-catalog');
+    try {
+      if (provider.provider === 'AWS_EC2_RAW') catalog.findAwsInstance(instanceType);
+      else catalog.findGcpInstance(instanceType);
+    } catch (catalogErr) {
+      return res.status(400).json({ error: catalogErr.message });
+    }
+
+    // A real, random per-instance token — this is the actual access
+    // control for a notebook server that stays running and reachable,
+    // unlike a training job that runs once and self-terminates.
+    const jupyterToken = require('crypto').randomBytes(24).toString('hex');
+    const jupyterPort = 8888;
+    const notebookId = `nb_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    try {
+      const launchResult = await rawCompute.launch(provider, instanceType, {
+        purpose: 'NOTEBOOK', trainingJobId: notebookId, // reused as the tag/name identifier, no real LabTrainingJob backs a notebook
+        jupyterToken, jupyterPort,
+      });
+
+      const instance = await prisma.computeInstance.create({
+        data: {
+          orgId: req.user.orgId, providerId: provider.id, purpose: 'NOTEBOOK',
+          instanceType, gpuType: launchResult.gpuType, gpuCount: launchResult.gpuCount,
+          externalInstanceId: launchResult.externalInstanceId, costPerHourUsd: launchResult.costPerHourUsd,
+          jupyterPort, jupyterToken, status: 'PROVISIONING', launchedAt: new Date(),
+        },
+      });
+      res.status(201).json({ data: instance, message: 'Notebook launching — check back in 2-3 minutes for a public IP, then open http://<publicIp>:8888/?token=<jupyterToken>.' });
+    } catch (launchErr) {
+      res.status(502).json({ error: `Notebook launch failed: ${launchErr.message}` });
+    }
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.get('/lab/notebooks', authenticate, async (req, res) => {
+  try {
+    const rows = await prisma.computeInstance.findMany({
+      where: { orgId: req.user.orgId, purpose: 'NOTEBOOK' },
+      orderBy: { createdAt: 'desc' },
+      include: { provider: { select: { provider: true, region: true } } },
+    });
+    // The access URL is computed here rather than stored — it's
+    // entirely derived from publicIp + jupyterPort + jupyterToken,
+    // all of which can change (a restart could get a new IP), so
+    // storing a URL risks it silently going stale.
+    const data = rows.map(r => ({
+      ...r,
+      accessUrl: (r.publicIp && r.jupyterToken) ? `http://${r.publicIp}:${r.jupyterPort}/?token=${r.jupyterToken}` : null,
+    }));
+    res.json({ data });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── TRAINING SCRIPT LIBRARY ──────────────────────────────────
+router.get('/lab/training-library', authenticate, async (req, res) => {
+  try {
+    const where = req.query.modelType ? { modelType: req.query.modelType } : {};
+    const rows = await prisma.trainingScriptLibrary.findMany({ where, orderBy: { name: 'asc' } });
+    res.json({ data: rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/lab/training-library/seed-defaults', authenticate, requireRole('MANAGER'), async (req, res) => {
+  try {
+    const existing = await prisma.trainingScriptLibrary.count();
+    if (existing > 0) return res.json({ created: 0, message: `${existing} library entries already exist.` });
+    const { seedTrainingLibrary } = require('../../prisma/seed-training-library');
+    await seedTrainingLibrary(prisma);
+    const total = await prisma.trainingScriptLibrary.count();
+    res.status(201).json({ created: total, message: `${total} library entries seeded.` });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

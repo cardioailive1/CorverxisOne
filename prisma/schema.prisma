@@ -13,6 +13,7 @@ model Org {
   slug           String           @unique
   plan           OrgPlan          @default(STARTER)
   activeVerticals String[]        @default([]) // which SensorModel verticals this client actually operates in — e.g. a precision manufacturer only needs "Manufacturing" and "Industrial Automation" out of all 18
+  maxConcurrentInstances Int      @default(3) // real fleet cap — the scheduler will queue rather than launch beyond this, the actual mechanism preventing a burst of job submissions from becoming an uncapped GPU bill
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   users          User[]
@@ -1689,6 +1690,9 @@ model ComputeInstance {
   instanceType      String   // e.g. "p4d.24xlarge" (AWS), "a2-highgpu-1g" (GCP)
   gpuType           String   // "A100-40GB" or "A100-80GB"
   gpuCount          Int
+  purpose           ComputeInstancePurpose @default(TRAINING_JOB)
+  jupyterPort       Int?     // set when purpose = NOTEBOOK
+  jupyterToken      String?  // access token for the real JupyterLab server — shown in the UI, not stored encrypted since it's scoped to one ephemeral instance's lifetime, not a durable credential
   externalInstanceId String? // the real EC2 instance ID / GCE instance name
   publicIp          String?
   privateIp         String?
@@ -1712,4 +1716,32 @@ enum ComputeInstanceStatus {
   TERMINATING   // shutdown requested
   TERMINATED    // confirmed stopped — this is what actually stops billing
   ERROR         // provisioning or boot failed
+}
+
+enum ComputeInstancePurpose {
+  TRAINING_JOB  // runs entrypoint.py against a specific LabTrainingJob, self-terminates on completion
+  NOTEBOOK      // runs a real JupyterLab server for interactive exploration, stays up until manually terminated or idle-timed-out
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Training Script Library — a real, browsable catalog of the
+//  actual scripts in training-scripts/, so launching a job means
+//  picking a real, known-working script rather than typing a
+//  freeform baseModel/method string and hoping the container image
+//  has something that matches. GLOBAL, not per-org — same "shared
+//  product catalog" pattern as SensorModelCatalogEntry.
+// ══════════════════════════════════════════════════════════════
+
+model TrainingScriptLibrary {
+  id            String   @id @default(cuid())
+  name          String
+  scriptPath    String   @unique // e.g. "train_classical_ml.py" — must match entrypoint.py's DISPATCH map
+  modelType     LabModelType
+  description   String
+  requiredPackages String[] // from requirements.txt — shown before launch so a missing dependency is a known risk, not a mid-job surprise
+  verifiedStatus String   // "TESTED" | "REFERENCE_ONLY" — honest per-script status, matching how these scripts were actually built this session (classical ML genuinely tested; time-series/vision/transformer are correct-but-unexecuted reference code)
+  exampleBaseModel String? // e.g. "ResNet-50", "Qwen 2.5 7B Instruct" — a real suggested value, not a required one
+  createdAt     DateTime @default(now())
+
+  @@map("training_script_library")
 }

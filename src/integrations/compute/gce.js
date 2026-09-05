@@ -75,6 +75,27 @@ shutdown -h now
 `;
 }
 
+function buildJupyterStartupScript({ jupyterToken, jupyterPort }) {
+  return `#!/bin/bash
+set -e
+exec > /var/log/corverxis-jupyter-bootstrap.log 2>&1
+echo "CorverxisONE Jupyter notebook bootstrap starting at $(date)"
+
+nvidia-smi || { echo "FATAL: GPU not visible to the instance"; exit 1; }
+
+pip3 install --break-system-packages jupyterlab torch torchvision transformers peft datasets scikit-learn pandas numpy
+
+git clone --depth 1 https://github.com/corverxis/corverxis-platform.git /opt/corverxis || \\
+  (echo "git clone failed — continuing without pre-cloned training-scripts/" && mkdir -p /opt/corverxis)
+
+jupyter lab \\
+  --ip=0.0.0.0 --port=${jupyterPort} --no-browser --allow-root \\
+  --ServerApp.token='${jupyterToken}' \\
+  --ServerApp.notebook_dir=/opt/corverxis/training-scripts \\
+  --ServerApp.allow_origin='*'
+`;
+}
+
 async function testConnection({ serviceAccountJson, projectId, region }) {
   const token = await getAccessToken(serviceAccountJson);
   const zone = `${region}-a`;
@@ -89,7 +110,8 @@ async function launchInstance({ serviceAccountJson, projectId, region, instanceT
   const spec = findGcpInstance(instanceType); // throws clearly on a non-A100 type, same safety allowlist as EC2
   const token = await getAccessToken(serviceAccountJson);
   const zone = `${region}-a`;
-  const instanceName = `corverxis-training-${jobConfig.trainingJobId}`.toLowerCase().slice(0, 63);
+  const isNotebook = jobConfig.purpose === 'NOTEBOOK';
+  const instanceName = `corverxis-${isNotebook ? 'notebook' : 'training'}-${jobConfig.trainingJobId}`.toLowerCase().slice(0, 63);
 
   const body = {
     name: instanceName,
@@ -101,9 +123,15 @@ async function launchInstance({ serviceAccountJson, projectId, region, instanceT
       initializeParams: { sourceImage: 'projects/ml-images/global/images/family/common-cu121-ubuntu-2204', diskSizeGb: '100' },
     }],
     networkInterfaces: [{ network: 'global/networks/default', accessConfigs: [{ type: 'ONE_TO_ONE_NAT', name: 'External NAT' }] }],
-    metadata: { items: [{ key: 'startup-script', value: buildStartupScript(jobConfig) }] },
+    // A training job's script calls `shutdown -h now` on completion —
+    // on GCE that only STOPS the instance (autoDelete only fires on an
+    // explicit instance delete, not a self-triggered stop), matching
+    // the same "don't destroy on internal shutdown" safety property
+    // EC2 needed an explicit InstanceInitiatedShutdownBehavior=stop
+    // for — GCE already behaves that way by default for both purposes.
+    metadata: { items: [{ key: 'startup-script', value: isNotebook ? buildJupyterStartupScript(jobConfig) : buildStartupScript(jobConfig) }] },
     tags: { items: ['corverxis-training'] },
-    labels: { managedby: 'corverxisone', trainingjobid: jobConfig.trainingJobId.toLowerCase() },
+    labels: { managedby: 'corverxisone', trainingjobid: jobConfig.trainingJobId.toLowerCase(), purpose: isNotebook ? 'notebook' : 'training_job' },
   };
 
   const res = await fetch(`https://compute.googleapis.com/compute/v1/projects/${projectId}/zones/${zone}/instances`, {
@@ -147,4 +175,4 @@ async function terminateInstance({ serviceAccountJson, projectId, region, extern
   return { ok: true };
 }
 
-module.exports = { testConnection, launchInstance, getInstanceStatus, terminateInstance, buildStartupScript };
+module.exports = { testConnection, launchInstance, getInstanceStatus, terminateInstance, buildStartupScript, buildJupyterStartupScript };

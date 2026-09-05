@@ -656,6 +656,11 @@ main()
       console.error('⚠ SensorModel catalog seed error (non-fatal, deploy continues):', e.message);
     }
     try {
+      await require('./seed-training-library').seedTrainingLibrary();
+    } catch (e) {
+      console.error('⚠ Training script library seed error (non-fatal, deploy continues):', e.message);
+    }
+    try {
       await require('./seed-vision-catalog').seedVisionCatalog();
     } catch (e) {
       console.error('⚠ CorverxisVision catalog seed error (non-fatal, deploy continues):', e.message);

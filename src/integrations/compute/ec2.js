@@ -82,6 +82,43 @@ shutdown -h now
   return Buffer.from(script).toString('base64');
 }
 
+/**
+ * Real JupyterLab bootstrap — genuinely different from the training
+ * bootstrap above: this stays running (a persistent server, not a
+ * script that runs once and terminates), so a real generated access
+ * token gates it rather than relying on network isolation alone.
+ */
+function buildJupyterStartupScript({ jupyterToken, jupyterPort }) {
+  const script = `#!/bin/bash
+set -e
+exec > /var/log/corverxis-jupyter-bootstrap.log 2>&1
+echo "CorverxisONE Jupyter notebook bootstrap starting at $(date)"
+
+nvidia-smi || { echo "FATAL: GPU not visible to the instance"; exit 1; }
+
+pip3 install --break-system-packages jupyterlab torch torchvision transformers peft datasets scikit-learn pandas numpy
+
+git clone --depth 1 https://github.com/corverxis/corverxis-platform.git /opt/corverxis || \\
+  (echo "git clone failed — continuing without pre-cloned training-scripts/" && mkdir -p /opt/corverxis)
+
+# Runs in the foreground deliberately — this IS the long-running
+# process for a notebook instance, unlike the training bootstrap
+# which runs a script to completion and shuts itself down.
+jupyter lab \\
+  --ip=0.0.0.0 --port=${jupyterPort} --no-browser --allow-root \\
+  --ServerApp.token='${jupyterToken}' \\
+  --ServerApp.notebook_dir=/opt/corverxis/training-scripts \\
+  --ServerApp.allow_origin='*'
+`;
+  // Same contract as buildUserDataScript — EC2's UserData field
+  // requires base64. This was a real bug caught by testing the full
+  // launchInstance pipeline, not just this function in isolation: the
+  // raw-text return here would have been sent to AWS unencoded, since
+  // launchInstance passes whichever builder's output straight through
+  // with no additional encoding step of its own.
+  return Buffer.from(script).toString('base64');
+}
+
 async function testConnection({ accessKeyId, secretAccessKey, region }) {
   const client = makeClient({ accessKeyId, secretAccessKey, region });
   const { DescribeRegionsCommand } = require('@aws-sdk/client-ec2');
@@ -94,7 +131,9 @@ async function launchInstance({ accessKeyId, secretAccessKey, region, instanceTy
   const spec = findAwsInstance(instanceType); // throws clearly on an unknown/non-A100 type — never silently launches the wrong hardware
   const amiId = await resolveLatestAmi(client);
 
-  const userData = buildUserDataScript(jobConfig);
+  const isNotebook = jobConfig.purpose === 'NOTEBOOK';
+  const userData = isNotebook ? buildJupyterStartupScript(jobConfig) : buildUserDataScript(jobConfig);
+  const nameTag = isNotebook ? `corverxis-notebook-${jobConfig.trainingJobId}` : `corverxis-training-${jobConfig.trainingJobId}`;
 
   const result = await client.send(new RunInstancesCommand({
     ImageId: amiId,
@@ -105,13 +144,19 @@ async function launchInstance({ accessKeyId, secretAccessKey, region, instanceTy
     SecurityGroupIds: securityGroupId ? [securityGroupId] : undefined,
     SubnetId: subnetId,
     UserData: userData,
-    InstanceInitiatedShutdownBehavior: 'terminate', // the `shutdown -h now` in user-data actually terminates (and stops billing), not just stops
+    // A training job's own script calls `shutdown -h now` when it
+    // finishes, so `terminate` is correct there. A notebook never
+    // self-shuts-down — it's meant to stay running until a human or
+    // the idle-timeout scheduler stops it — so `stop` here means an
+    // accidental in-instance shutdown doesn't also destroy the disk.
+    InstanceInitiatedShutdownBehavior: isNotebook ? 'stop' : 'terminate',
     TagSpecifications: [{
       ResourceType: 'instance',
       Tags: [
-        { Key: 'Name', Value: `corverxis-training-${jobConfig.trainingJobId}` },
+        { Key: 'Name', Value: nameTag },
         { Key: 'ManagedBy', Value: 'CorverxisONE' },
         { Key: 'CorverxisTrainingJobId', Value: jobConfig.trainingJobId },
+        { Key: 'Purpose', Value: isNotebook ? 'NOTEBOOK' : 'TRAINING_JOB' },
       ],
     }],
   }));
@@ -152,4 +197,4 @@ async function terminateInstance({ accessKeyId, secretAccessKey, region, externa
   return { ok: true };
 }
 
-module.exports = { testConnection, launchInstance, getInstanceStatus, terminateInstance, buildUserDataScript, resolveLatestAmi };
+module.exports = { testConnection, launchInstance, getInstanceStatus, terminateInstance, buildUserDataScript, buildJupyterStartupScript, resolveLatestAmi };

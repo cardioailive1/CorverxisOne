@@ -619,4 +619,16 @@ server.listen(PORT, HOST, () => {
   const ok = f => fs.existsSync(path.join(PUBLIC, f)) ? '✓' : '✗ MISSING';
   console.log(`  CorverxisONE    : ${ok('corverxis-one.html')}`);
   console.log(`  Corverxis Vision: ${ok('corverxis-vision.html')}\n`);
+
+  // Real in-process scheduler — the actual mechanism closing the "idle-
+  // timeout only runs when called" gap. See scheduler.js's own header
+  // comment for the honest caveat: this is a genuine improvement over
+  // click-to-run, not a claim of durable-queue production-grade infra.
+  try {
+    const { startScheduler } = require('./integrations/compute/scheduler');
+    const rawCompute = require('./integrations/compute');
+    startScheduler(prisma, rawCompute);
+  } catch (e) {
+    console.error('⚠ Compute scheduler failed to start (non-fatal — compute features degrade to on-demand-only):', e.message);
+  }
 });
