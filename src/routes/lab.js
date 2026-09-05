@@ -38,6 +38,7 @@ const { autoNcrFromVisionFail, autoNcrFromSensorCrit, autoScarFromSupplierIssue 
 const trainingProviders = require('../integrations/training');
 const { encryptCredentials } = require('../integrations/training/crypto');
 const imageStorage = require('../integrations/storage');
+const rawCompute = require('../integrations/compute');
 
 // Gateway agents authenticate with a bearer API key, not a user session —
 // they're machines running on the client's plant network, not logged-in
@@ -1097,6 +1098,125 @@ router.get('/lab/vision-jobs/:jobId/manifest', authenticate, async (req, res) =>
     res.set('Content-Type', 'text/csv');
     res.set('Content-Disposition', `attachment; filename="vision-manifest-${job.id}.csv"`);
     res.send(csvLines.join('\n'));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── SELF-MANAGED A100 COMPUTE (CorverxisONE's own orchestrator) ──
+// Distinct from the training-jobs providerId dispatch — that path
+// hands a job to SageMaker/Vertex AI/RunPod's OWN scheduler. This one
+// provisions a raw GPU VM directly and this platform's own code drives
+// the whole lifecycle: launch, wait for boot, poll, terminate.
+router.post('/lab/training-jobs/:id/launch-on-compute', authenticate, requireRole('ENGINEER'), async (req, res) => {
+  try {
+    const job = await prisma.labTrainingJob.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
+    if (!job) return res.status(404).json({ error: 'Training job not found' });
+
+    const { providerId, instanceType } = req.body;
+    if (!providerId || !instanceType) return res.status(400).json({ error: 'providerId and instanceType are required' });
+
+    const provider = await prisma.trainingProvider.findFirst({ where: { id: providerId, orgId: req.user.orgId } });
+    if (!provider) return res.status(404).json({ error: 'Compute provider not found' });
+    if (!['AWS_EC2_RAW', 'GCP_COMPUTE_RAW'].includes(provider.provider)) {
+      return res.status(400).json({ error: 'That provider is a managed training service, not a raw compute provider — use the regular training-jobs providerId dispatch instead.' });
+    }
+
+    try {
+      const launchResult = await rawCompute.launch(provider, instanceType, {
+        trainingJobId: job.id,
+        apiBaseUrl: process.env.APP_URL || `https://${req.get('host')}`,
+        dataSourceApiKey: null,
+        modelType: job.modelType, baseModel: job.baseModel, method: job.method,
+        datasetUrl: req.body.datasetUrl || null,
+      });
+
+      const instance = await prisma.computeInstance.create({
+        data: {
+          orgId: req.user.orgId, providerId: provider.id, trainingJobId: job.id,
+          instanceType, gpuType: launchResult.gpuType, gpuCount: launchResult.gpuCount,
+          externalInstanceId: launchResult.externalInstanceId, costPerHourUsd: launchResult.costPerHourUsd,
+          status: 'PROVISIONING', launchedAt: new Date(),
+        },
+      });
+      await prisma.labTrainingJob.update({ where: { id: job.id }, data: { status: 'QUEUED' } });
+
+      res.status(201).json({ data: instance });
+    } catch (launchErr) {
+      await prisma.labTrainingJob.update({ where: { id: job.id }, data: { status: 'FAILED', metrics: { error: launchErr.message } } });
+      res.status(502).json({ error: `Instance launch failed: ${launchErr.message}` });
+    }
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/lab/compute-instances/:id/sync-status', authenticate, requireRole('ENGINEER'), async (req, res) => {
+  try {
+    const instance = await prisma.computeInstance.findFirst({ where: { id: req.params.id, orgId: req.user.orgId }, include: { provider: true } });
+    if (!instance) return res.status(404).json({ error: 'Compute instance not found' });
+    if (!instance.externalInstanceId) return res.status(400).json({ error: 'This instance has no external ID — launch may have failed before provisioning completed.' });
+
+    const result = await rawCompute.pollStatus(instance.provider, instance.externalInstanceId);
+    const data = { status: result.status };
+    if (result.publicIp) data.publicIp = result.publicIp;
+    if (result.privateIp) data.privateIp = result.privateIp;
+    if (result.status === 'TERMINATED' && !instance.terminatedAt) {
+      data.terminatedAt = new Date();
+      data.terminationReason = data.terminationReason || 'job_completed';
+    }
+    const updated = await prisma.computeInstance.update({ where: { id: instance.id }, data });
+    res.json({ data: updated });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/lab/compute-instances/:id/terminate', authenticate, requireRole('ENGINEER'), async (req, res) => {
+  try {
+    const instance = await prisma.computeInstance.findFirst({ where: { id: req.params.id, orgId: req.user.orgId }, include: { provider: true } });
+    if (!instance) return res.status(404).json({ error: 'Compute instance not found' });
+    await rawCompute.terminate(instance.provider, instance.externalInstanceId);
+    const updated = await prisma.computeInstance.update({
+      where: { id: instance.id },
+      data: { status: 'TERMINATING', terminationReason: req.body.reason || 'manual' },
+    });
+    res.json({ data: updated });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.get('/lab/compute-instances', authenticate, async (req, res) => {
+  try {
+    const rows = await prisma.computeInstance.findMany({
+      where: { orgId: req.user.orgId }, orderBy: { createdAt: 'desc' },
+      include: { trainingJob: { select: { modelType: true, baseModel: true } }, provider: { select: { provider: true, region: true } } },
+    });
+    res.json({ data: rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Meant to be hit by a real cron/scheduled job (Render Cron Jobs, or
+// any external scheduler) — this platform has no background job
+// runner of its own, so idle-timeout enforcement is an on-demand check
+// this endpoint performs when called, not an always-running daemon.
+// Without SOME idle-timeout mechanism, a hung training script that
+// never calls report_complete/report_failed would leave a real A100
+// instance billing indefinitely — this is the safety net for exactly
+// that failure mode.
+router.post('/lab/compute-instances/enforce-idle-timeout', authenticate, requireRole('ADMIN'), async (req, res) => {
+  try {
+    const maxHours = Number(req.body.maxHours) || 12;
+    const cutoff = new Date(Date.now() - maxHours * 3600000);
+    const stale = await prisma.computeInstance.findMany({
+      where: { orgId: req.user.orgId, status: { in: ['PROVISIONING', 'BOOTING', 'RUNNING'] }, launchedAt: { lt: cutoff } },
+      include: { provider: true },
+    });
+
+    const terminated = [];
+    for (const instance of stale) {
+      try {
+        await rawCompute.terminate(instance.provider, instance.externalInstanceId);
+        await prisma.computeInstance.update({ where: { id: instance.id }, data: { status: 'TERMINATING', terminationReason: 'idle_timeout' } });
+        terminated.push(instance.id);
+      } catch (e) {
+        console.error(`⚠ Idle-timeout termination failed for instance ${instance.id} (will retry next check):`, e.message);
+      }
+    }
+    res.json({ data: { checked: stale.length, terminated } });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

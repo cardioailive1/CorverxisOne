@@ -52,6 +52,7 @@ model Org {
   goldenBatchRecommendations    GoldenBatchRecommendation[]
   demandForecastRecommendations DemandForecastRecommendation[]
   trainingProviders TrainingProvider[]
+  computeInstances ComputeInstance[]
 
   @@map("orgs")
 }
@@ -1425,6 +1426,7 @@ model LabTrainingJob {
   gpuTier      String?  // e.g. "Flash — Single GPU", "Pro — H100 80GB"
   providerId   String?  // which real cloud account this job actually ran on — null means Lab-tracked only, no real compute dispatched
   provider     TrainingProvider? @relation(fields: [providerId], references: [id])
+  computeInstance ComputeInstance? // one-to-one — set only when this job actually ran on a self-provisioned raw A100 instance rather than a managed SageMaker/Vertex AI/RunPod job
   externalJobId String? // the cloud provider's own job/pod ID — SageMaker TrainingJobName, Vertex AI CustomJob resource name, or RunPod pod ID
   providerLogsUrl String? // direct link to the provider's console/logs for this job
   estimatedCostUsd Float? // computed at submission from GPU tier × estimated duration — directional, not billed truth
@@ -1644,6 +1646,7 @@ model TrainingProvider {
   updatedAt         DateTime @updatedAt
 
   trainingJobs      LabTrainingJob[]
+  computeInstances  ComputeInstance[]
 
   @@index([orgId])
   @@map("training_providers")
@@ -1653,10 +1656,60 @@ enum TrainingProviderType {
   AWS_SAGEMAKER
   GCP_VERTEX_AI
   RUNPOD
+  AWS_EC2_RAW    // CorverxisONE's own orchestrator provisioning raw EC2 GPU instances directly — not going through SageMaker's managed training API at all
+  GCP_COMPUTE_RAW // same, via raw Compute Engine instances instead of Vertex AI's managed training API
 }
 
 enum TrainingProviderStatus {
   NOT_CONNECTED
   CONNECTED
   ERROR
+}
+
+// ══════════════════════════════════════════════════════════════
+//  CorverxisONE's own training compute — raw GPU VMs provisioned
+//  directly on EC2/Compute Engine, orchestrated by this platform's
+//  own scheduler (launch → wait for boot → bootstrap the training
+//  container via startup script → poll → terminate), NOT dispatched
+//  through AWS SageMaker's or GCP Vertex AI's managed training APIs.
+//  This is the genuine architectural difference from
+//  TrainingProvider(AWS_SAGEMAKER/GCP_VERTEX_AI) — those rent a
+//  managed ML service; this rents raw compute and runs Corverxis's
+//  own orchestration logic on top of it.
+// ══════════════════════════════════════════════════════════════
+
+model ComputeInstance {
+  id                String   @id @default(cuid())
+  orgId             String
+  org               Org      @relation(fields: [orgId], references: [id])
+  providerId        String
+  provider          TrainingProvider @relation(fields: [providerId], references: [id])
+  trainingJobId     String?  @unique
+  trainingJob       LabTrainingJob? @relation(fields: [trainingJobId], references: [id])
+  instanceType      String   // e.g. "p4d.24xlarge" (AWS), "a2-highgpu-1g" (GCP)
+  gpuType           String   // "A100-40GB" or "A100-80GB"
+  gpuCount          Int
+  externalInstanceId String? // the real EC2 instance ID / GCE instance name
+  publicIp          String?
+  privateIp         String?
+  status            ComputeInstanceStatus @default(PROVISIONING)
+  costPerHourUsd    Float?   // from the on-demand catalog at launch time — directional, not a billed invoice
+  launchedAt        DateTime?
+  terminatedAt      DateTime?
+  terminationReason String?  // "job_completed" | "job_failed" | "manual" | "idle_timeout" — so a cost review can tell deliberate shutdowns from ones that needed investigating
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([orgId])
+  @@index([providerId])
+  @@map("compute_instances")
+}
+
+enum ComputeInstanceStatus {
+  PROVISIONING  // launch request sent, instance not reachable yet
+  BOOTING       // instance running, startup script still bootstrapping the training container
+  RUNNING       // training container actually executing
+  TERMINATING   // shutdown requested
+  TERMINATED    // confirmed stopped — this is what actually stops billing
+  ERROR         // provisioning or boot failed
 }
