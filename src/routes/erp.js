@@ -155,11 +155,20 @@ router.post('/test', erpAuth, (req, res) => {
 
 // ── GET /api/erp/status ───────────────────────────────────────
 router.get('/status', erpAuth, async (req, res) => {
+  // req.user.orgId is null for the external-ERP-key auth path (a
+  // single global ERP_API_KEY isn't scoped to one org — a real,
+  // separate gap from what this fixes) but IS correctly populated
+  // for the session-cookie path, which is what CorverxisONE's own
+  // frontend actually uses. Scoping by it when present fixes a real
+  // bug: these counts were previously global across every org.
+  const orgId = req.user.orgId;
+  const woWhere = orgId ? { orgId } : {};
+  const ncrWhere = orgId ? { orgId } : {};
   const [wos, ncrs, autoNcrs, recentLogs] = await Promise.all([
-    prisma.workOrder.count(),
-    prisma.ncr.count(),
-    prisma.ncr.count({ where: { autoRaised: true } }),
-    prisma.emailLog.findMany({ orderBy: { createdAt: 'desc' }, take: 5 }),
+    prisma.workOrder.count({ where: woWhere }),
+    prisma.ncr.count({ where: ncrWhere }),
+    prisma.ncr.count({ where: { ...ncrWhere, autoRaised: true } }),
+    prisma.emailLog.findMany({ where: orgId ? { orgId } : {}, orderBy: { createdAt: 'desc' }, take: 5 }),
   ]);
   res.json({
     status:   'connected',
@@ -186,7 +195,7 @@ router.get('/status', erpAuth, async (req, res) => {
 router.get('/automation/ncrs', authenticate, requireRole('ADMIN'), async (req, res) => {
   try {
     const { limit = 50, status } = req.query;
-    const where = { autoRaised: true };
+    const where = { orgId: req.user.orgId, autoRaised: true };
     if (status) where.status = status;
     const ncrs = await prisma.ncr.findMany({
       where,
@@ -204,6 +213,7 @@ router.get('/automation/ncrs', authenticate, requireRole('ADMIN'), async (req, r
 router.get('/automation/log', authenticate, requireRole('ADMIN'), async (req, res) => {
   try {
     const logs = await prisma.emailLog.findMany({
+      where: { orgId: req.user.orgId },
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
@@ -211,6 +221,61 @@ router.get('/automation/log', authenticate, requireRole('ADMIN'), async (req, re
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── GET /api/erp/dashboard ────────────────────────────────────
+// Real data for the ERP Integration Hub page — replaces the
+// previously fully-hardcoded ERP_SYSTEMS array (9 fake systems, all
+// marked LIVE, with string-literal timestamps like "2s ago" that
+// never actually updated). There is no real SAP/Salesforce/Workday
+// connector code anywhere in this codebase — building 9 real
+// individual integrations is a different, much larger project than
+// what this fixes. What genuinely exists and IS real: CorverxisLab's
+// LabDataSource connections (ERP/API_FEED/MES/SCADA_HISTORIAN types),
+// which already have real status, real API keys, and real ingestion
+// tracking (see src/routes/lab.js). This surfaces those, honestly, as
+// "your org's actual connected integrations" — which may be zero.
+router.get('/dashboard', authenticate, async (req, res) => {
+  try {
+    const orgId = req.user.orgId;
+    const [wos, autoRaisedWos, ncrs, autoNcrs, recentLogs, dataSources] = await Promise.all([
+      prisma.workOrder.count({ where: { orgId } }),
+      prisma.workOrder.count({ where: { orgId, autoRaised: true } }),
+      prisma.ncr.count({ where: { orgId } }),
+      prisma.ncr.count({ where: { orgId, autoRaised: true } }),
+      prisma.emailLog.findMany({ where: { orgId }, orderBy: { createdAt: 'desc' }, take: 10 }),
+      prisma.labDataSource.findMany({
+        where: { orgId, type: { in: ['ERP', 'MES', 'SCADA_HISTORIAN', 'API_FEED'] } },
+        include: { _count: { select: { ingestionEvents: true } }, project: { select: { title: true, pillar: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    const connectedCount = dataSources.filter(d => d.status === 'CONNECTED').length;
+    const erroredCount = dataSources.filter(d => d.status === 'ERROR').length;
+    const totalRecordsIngested = dataSources.reduce((a, d) => a + d.recordsIngested, 0);
+
+    res.json({
+      data: {
+        summary: {
+          activeIntegrations: connectedCount,
+          totalConfigured: dataSources.length,
+          errors: erroredCount,
+          workOrders: wos, autoRaisedWorkOrders: autoRaisedWos, ncrs, autoRaisedNcrs: autoNcrs,
+          totalRecordsIngested,
+        },
+        // Real connections — genuinely empty for an org that hasn't
+        // configured any yet, not padded out with fake entries.
+        connections: dataSources.map(d => ({
+          id: d.id, name: d.name, type: d.type, status: d.status, origin: d.origin,
+          lastSyncAt: d.lastSyncAt, recordsIngested: d.recordsIngested,
+          ingestionEventCount: d._count.ingestionEvents,
+          project: d.project?.title, pillar: d.project?.pillar,
+        })),
+        recentNotifications: recentLogs.map(l => ({ subject: l.subject, status: l.status, sentAt: l.sentAt, createdAt: l.createdAt })),
+      },
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 module.exports = router;

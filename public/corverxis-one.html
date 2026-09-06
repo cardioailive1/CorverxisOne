@@ -8447,20 +8447,9 @@ async function submitNewAuto() {
 // ══════════════════════════════════════════════════════════════
 
 var _erpLines = [];
-var _erpInitDone = false;
 
 // ── ERP SYSTEMS CONFIG ────────────────────────────────────────
-var ERP_SYSTEMS = [
-  { id:'sap',        name:'SAP S/4HANA',    type:'ERP',      protocol:'REST API / IDOC', icon:'SAP', iconBg:'#1B6EBE', status:'LIVE',   lastSync:'2s ago',  events:18420, latency:98,  direction:'bidirectional', desc:'Core ERP — work orders, BOMs, purchase orders, goods movements, financial postings. IDOC and REST API. Auto-creates WOs in CorverxisONE on SAP production order release.' },
-  { id:'salesforce', name:'Salesforce CRM', type:'CRM',      protocol:'REST / Bulk API', icon:'SF',  iconBg:'#00A1E0', status:'LIVE',   lastSync:'15s ago', events:4210,  latency:142, direction:'bidirectional', desc:'Customer orders, priority expedites, delivery schedule changes. CRM opportunity close triggers WO creation. NCR resolutions pushed back to Salesforce cases.' },
-  { id:'workday',    name:'Workday HRIS',   type:'HRIS',     protocol:'REST API',        icon:'WD',  iconBg:'#F5862E', status:'LIVE',   lastSync:'5m ago',  events:820,   latency:210, direction:'inbound',       desc:'Operator shift data, skills matrix, training records. Feeds maintenance crew dispatch — when sensor alerts fire, Workday is queried for on-shift qualified technicians.' },
-  { id:'sharepoint', name:'SharePoint DMS', type:'Document', protocol:'Graph API',       icon:'SP',  iconBg:'#038387', status:'LIVE',   lastSync:'1m ago',  events:1240,  latency:188, direction:'bidirectional', desc:'Engineering drawings, SOPs, control plans, FMEA documents. RAG-indexed by NexGen Ultra for AI-assisted NCR 8D and PPAP assembly. Documents auto-retrieved on NCR creation.' },
-  { id:'opcua',      name:'PLC / OPC-UA',   type:'IIoT',     protocol:'OPC-UA v1.04',    icon:'PLC', iconBg:'#7C3AED', status:'LIVE',   lastSync:'0.1s ago',events:19800, latency:12,  direction:'inbound',       desc:'Real-time sensor data from 32 PLCs across all 6 production lines. 10Hz polling. Feeds IIoT dashboard, predictive maintenance, and SPC. CRITICAL threshold breach → auto-alert + NCR.' },
-  { id:'mqtt',       name:'MQTT Broker',    type:'IIoT',     protocol:'MQTT v5',         icon:'MQ',  iconBg:'#8B5CF6', status:'LIVE',   lastSync:'0.1s ago',events:28400, latency:8,   direction:'inbound',       desc:'Supplementary sensor pub/sub for edge devices and cobots. Bridges to WebSocket for live browser streaming.' },
-  { id:'mes',        name:'MES Opcenter',   type:'MES',      protocol:'MTConnect / REST', icon:'MES', iconBg:'#0F766E', status:'LIVE',   lastSync:'1s ago',  events:6840,  latency:55,  direction:'bidirectional', desc:'Production actuals, machine cycle times, operator entries, scrap counts. MES feeds OEE calculations in real-time. Work order status updates bi-directional.' },
-  { id:'snowflake',  name:'Snowflake DW',   type:'Analytics',protocol:'JDBC / REST API', icon:'SF2', iconBg:'#1D6FA4', status:'LIVE',   lastSync:'5m ago',  events:880,   latency:320, direction:'outbound',      desc:'All CorverxisONE operational data replicated to Snowflake for BI, executive dashboards, and long-term trend analysis. 5-minute micro-batches.' },
-  { id:'plex',       name:'Plex Manufacturing Cloud', type:'ERP/MES', protocol:'REST API / Webhooks', icon:'PLX', iconBg:'#E8173C', status:'LIVE', lastSync:'3s ago', events:6240, latency:118, direction:'bidirectional', desc:'Cloud-native ERP and MES for manufacturing. Real-time work order sync, production tracking, quality module integration, supplier portal, and traceability. Auto-receives WO releases from Plex production schedules and pushes NCR/SCAR data back for supplier quality management.' },
-];
+var ERP_CONNECTIONS = []; // populated from a real GET /api/erp/dashboard call — see loadERPHub(). Replaces what used to be a fully hardcoded array of 9 fake "LIVE" systems (SAP/Salesforce/Workday/etc.) that never reflected any real connection.
 
 function erpTab(name) {
   document.querySelectorAll('.scm-tab[id^="erptab-"]').forEach(function(t){
@@ -8477,69 +8466,57 @@ function erpTab(name) {
   if (name === 'test')    loadTestLineSelect();
 }
 
-function loadERPHub() {
-  if (_erpInitDone) return;
-  _erpInitDone = true;
-  renderERPSystems();
-  loadERPKPIs();
-}
-
-async function loadERPKPIs() {
-  try {
-    // Get counts from live API
-    var [wos, ncrs, emailLogs] = await Promise.all([
-      fetch('/api/v1/work-orders', {credentials:'same-origin'}).then(function(r){ return r.ok?r.json():{data:[]}; }),
-      fetch('/api/v1/ncrs', {credentials:'same-origin'}).then(function(r){ return r.ok?r.json():{data:[]}; }),
-      fetch('/api/automation/log', {credentials:'same-origin'}).then(function(r){ return r.ok?r.json():{data:[]}; }),
-    ]);
-    var t = function(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; };
-    t('erp-kv-integrations', ERP_SYSTEMS.filter(function(s){ return s.status==='LIVE'; }).length);
-    t('erp-kv-int-s', ERP_SYSTEMS.length + ' systems configured');
-    t('erp-kv-events', ERP_SYSTEMS.reduce(function(a,s){ return a+s.events; }, 0).toLocaleString());
-    t('erp-kv-errors', '0');
-    t('erp-kv-latency', Math.round(ERP_SYSTEMS.reduce(function(a,s){ return a+s.latency; },0)/ERP_SYSTEMS.length) + 'ms');
-    var autoWOs = (wos.data||[]).filter(function(w){ return w.autoRaised; });
-    t('erp-kv-wo', autoWOs.length);
-    // Agent actions = email log count
-    var agentEl = document.getElementById('agent-actions-count');
-    if (agentEl) agentEl.textContent = (emailLogs.data||[]).length;
-  } catch(e) { console.warn('[ERP] KPI load failed:', e.message); }
-}
-
 function renderERPSystems() {
   var grid = document.getElementById('erp-systems-grid');
   if (!grid) return;
-  var DIR_ICONS = { bidirectional:'⇄', inbound:'→', outbound:'←' };
-  grid.innerHTML = ERP_SYSTEMS.map(function(s) {
-    var statusCol = s.status==='LIVE' ? '#22c55e' : s.status==='DEGRADED' ? '#f59e0b' : '#ef4444';
-    var latCol = s.latency<100 ? '#22c55e' : s.latency<300 ? '#f59e0b' : '#ef4444';
+  var TYPE_META = {
+    ERP: { icon: 'ERP', color: '#1B6EBE' }, MES: { icon: 'MES', color: '#0F766E' },
+    SCADA_HISTORIAN: { icon: 'SCD', color: '#7C3AED' }, API_FEED: { icon: 'API', color: '#E8173C' },
+  };
+  if (!ERP_CONNECTIONS.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--text3)">' +
+      'No ERP/MES/API connections configured yet for this org. ' +
+      '<a href="#" onclick="window.open(\'/lab\',\'_blank\');return false" style="color:#00c2e0">Add one in CorverxisLab \u2192 Site Onboarding</a>' +
+      '<div style="font-size:10.5px;color:var(--text3);margin-top:8px">Connections created there (type ERP, MES, SCADA Historian, or API Feed) show up here automatically, with their real status and sync activity \u2014 nothing on this page is simulated.</div>' +
+    '</div>';
+    return;
+  }
+  grid.innerHTML = ERP_CONNECTIONS.map(function(s) {
+    var statusCol = s.status==='CONNECTED' ? '#22c55e' : s.status==='CONNECTING' ? '#f59e0b' : s.status==='ERROR' ? '#ef4444' : '#6b7280';
+    var meta = TYPE_META[s.type] || { icon: '?', color: '#6b7280' };
+    var lastSyncText = s.lastSyncAt ? timeAgo(s.lastSyncAt) : 'Never';
     return '<div style="background:#0d1f3c;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">' +
         '<div style="display:flex;gap:10px;align-items:center">' +
-          '<div style="width:36px;height:36px;border-radius:7px;background:'+s.iconBg+';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff">'+s.icon+'</div>' +
+          '<div style="width:36px;height:36px;border-radius:7px;background:'+meta.color+';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff">'+meta.icon+'</div>' +
           '<div><div style="font-size:13px;font-weight:700;color:#e2e8f0">'+s.name+'</div>' +
-          '<div style="font-size:10px;color:#6b7280">'+s.type+' · '+s.protocol+'</div></div>' +
+          '<div style="font-size:10px;color:#6b7280">'+s.type+(s.pillar ? ' · '+s.project : '')+'</div></div>' +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:6px">' +
-          '<div style="width:6px;height:6px;border-radius:50%;background:'+statusCol+';animation:pulse 2s infinite"></div>' +
-          '<span style="font-size:10px;color:'+statusCol+';font-weight:700">'+s.status+'</span>' +
+          '<div style="width:6px;height:6px;border-radius:50%;background:'+statusCol+(s.status==='CONNECTED'?';animation:pulse 2s infinite':'')+'"></div>' +
+          '<span style="font-size:10px;color:'+statusCol+';font-weight:700">'+s.status.replace('_',' ')+'</span>' +
         '</div>' +
       '</div>' +
-      '<div style="font-size:11px;color:#9ca3af;margin-bottom:10px;line-height:1.5">'+s.desc+'</div>' +
+      '<div style="font-size:11px;color:#9ca3af;margin-bottom:10px;line-height:1.5">Origin: '+s.origin+(s.pillar ? ' · Pillar: '+s.pillar.replace('_',' ') : '')+'</div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">' +
-        '<div style="background:#112645;border-radius:5px;padding:6px;text-align:center"><div style="font-size:9px;color:#6b7280">LAST SYNC</div><div style="font-size:11px;font-weight:700;color:#e2e8f0">'+s.lastSync+'</div></div>' +
-        '<div style="background:#112645;border-radius:5px;padding:6px;text-align:center"><div style="font-size:9px;color:#6b7280">EVENTS/DAY</div><div style="font-size:11px;font-weight:700;color:#e2e8f0">'+s.events.toLocaleString()+'</div></div>' +
-        '<div style="background:#112645;border-radius:5px;padding:6px;text-align:center"><div style="font-size:9px;color:#6b7280">LATENCY</div><div style="font-size:11px;font-weight:700;color:'+latCol+'">'+s.latency+'ms</div></div>' +
+        '<div style="background:#112645;border-radius:5px;padding:6px;text-align:center"><div style="font-size:9px;color:#6b7280">LAST SYNC</div><div style="font-size:11px;font-weight:700;color:#e2e8f0">'+lastSyncText+'</div></div>' +
+        '<div style="background:#112645;border-radius:5px;padding:6px;text-align:center"><div style="font-size:9px;color:#6b7280">RECORDS</div><div style="font-size:11px;font-weight:700;color:#e2e8f0">'+s.recordsIngested.toLocaleString()+'</div></div>' +
+        '<div style="background:#112645;border-radius:5px;padding:6px;text-align:center"><div style="font-size:9px;color:#6b7280">BATCHES</div><div style="font-size:11px;font-weight:700;color:#e2e8f0">'+s.ingestionEventCount+'</div></div>' +
       '</div>' +
-      '<div style="display:flex;justify-content:space-between;align-items:center">' +
-        '<span style="font-size:10px;color:#6b7280">'+DIR_ICONS[s.direction]+' '+s.direction+'</span>' +
-        '<div style="display:flex;gap:6px">' +
-          '<button style="padding:3px 8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:5px;color:var(--text2);font-size:10px;cursor:pointer">Logs</button>' +
-          '<button style="padding:3px 8px;background:rgba(0,194,224,.1);border:1px solid rgba(0,194,224,.3);border-radius:5px;color:#00c2e0;font-size:10px;cursor:pointer">Configure</button>' +
-        '</div>' +
+      '<div style="display:flex;justify-content:flex-end">' +
+        '<button onclick="window.open(\'/lab\',\'_blank\')" style="padding:3px 8px;background:rgba(0,194,224,.1);border:1px solid rgba(0,194,224,.3);border-radius:5px;color:#00c2e0;font-size:10px;cursor:pointer">Manage in Lab \u2192</button>' +
       '</div>' +
     '</div>';
   }).join('');
+}
+function timeAgo(dateStr) {
+  var diffMs = Date.now() - new Date(dateStr).getTime();
+  var mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return mins + 'm ago';
+  var hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + 'h ago';
+  return Math.floor(hrs / 24) + 'd ago';
 }
 
 // ── EVENT LOG ─────────────────────────────────────────────────
@@ -12045,25 +12022,33 @@ async function loadSmDevPlans() {
 }
 
 // ── ERP — ensure renderERPSystems is called + KPIs set ────────
-function loadERPHub() {
-  // KPIs
+async function loadERPHub() {
   var t = function(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; };
-  var live = ERP_SYSTEMS.filter(function(s){ return s.status==='LIVE'; }).length;
-  t('erp-kv-integrations', live);
-  t('erp-kv-int-s', ERP_SYSTEMS.length+' systems configured');
-  t('erp-kv-events', ERP_SYSTEMS.reduce(function(a,s){return a+s.events;},0).toLocaleString());
-  t('erp-kv-errors', '0');
-  t('erp-kv-latency', Math.round(ERP_SYSTEMS.reduce(function(a,s){return a+s.latency;},0)/ERP_SYSTEMS.length)+'ms');
-  t('erp-kv-wo','—');
-  t('erp-kv-sync','99.97%');
-  // Render system cards
-  renderERPSystems();
-  // Load live WO count
-  fetch('/api/v1/work-orders',{credentials:'same-origin'})
-    .then(function(r){ return r.ok?r.json():{data:[]}; })
-    .then(function(d){ t('erp-kv-wo',(d.data||[]).filter(function(w){return w.autoRaised;}).length); })
-    .catch(function(){});
-  // Generate mock events
+  t('erp-kv-int-s', 'Loading...');
+  try {
+    var r = await fetch('/api/erp/dashboard', { credentials:'same-origin' });
+    if (!r.ok) throw new Error('unavailable');
+    var body = await r.json();
+    var s = body.data.summary;
+    ERP_CONNECTIONS = body.data.connections || []; // real data, replaces the old hardcoded ERP_SYSTEMS array entirely
+
+    t('erp-kv-integrations', s.activeIntegrations);
+    t('erp-kv-int-s', s.totalConfigured ? (s.activeIntegrations + ' of ' + s.totalConfigured + ' connected') : 'None configured yet');
+    t('erp-kv-events', s.totalRecordsIngested.toLocaleString());
+    t('erp-kv-errors', s.errors);
+    var errEl = document.getElementById('erp-kv-err-s');
+    if (errEl) errEl.textContent = s.errors > 0 ? 'Needs attention' : (s.totalConfigured ? 'All healthy' : 'None configured');
+    t('erp-kv-latency', '—'); // no real per-request latency is measured anywhere in the ingest pipeline yet — showing a fabricated number here would repeat the exact problem being fixed
+    t('erp-kv-wo', s.autoRaisedWorkOrders);
+    t('erp-kv-sync', s.totalConfigured ? Math.round((s.activeIntegrations / s.totalConfigured) * 100) + '%' : '—');
+
+    renderERPSystems();
+  } catch (e) {
+    console.error('[ERP] dashboard load failed:', e.message);
+    t('erp-kv-int-s', 'Could not load');
+  }
+  // The Events tab's log below is still simulated — a separate,
+  // not-yet-fixed piece from the KPI/system cards this addresses.
   generateMockEvents();
 }
 
